@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 
 type SheetData = {
-  proximoRetiro: string | null;
+  retirosProximos: { fecha: string; lugar: string }[];
+  mesRetirosLabel: string | null;
   ces: Record<string, string>[];
   crtCv: Record<string, string>[];
   cumpleanosProximos: { nombre: string; fecha: string }[];
@@ -23,11 +24,53 @@ function formatDate(s: string): string {
 }
 
 function getVal(obj: Record<string, string>, ...keys: string[]): string {
+  const norm = (k: string) => k?.toLowerCase().replace(/\s+/g, "_").replace(/ó/g, "o") ?? "";
   for (const k of keys) {
-    const v = obj[k?.toLowerCase().replace(/\s+/g, "_") ?? ""] ?? obj[k ?? ""];
+    const v = obj[norm(k)] ?? obj[k ?? ""];
     if (v) return v;
   }
   return "";
+}
+
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+function parseDateStr(s: string): { day: number; month: number; monthName: string } | null {
+  if (!s?.trim()) return null;
+  const str = String(s).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const [y, m, d] = str.split("-").map(Number);
+    return { day: d, month: m - 1, monthName: MESES[m - 1] ?? "" };
+  }
+  const num = Number(str);
+  if (!isNaN(num) && num > 0 && num < 100000) {
+    const d = new Date((num - 25569) * 86400 * 1000);
+    if (isNaN(d.getTime())) return null;
+    return { day: d.getDate(), month: d.getMonth(), monthName: MESES[d.getMonth()] ?? "" };
+  }
+  const parts = str.split(/[\/\-\.]/).map((p) => parseInt(p.trim(), 10));
+  if (parts.length >= 2) {
+    let d: number, m: number;
+    if (parts[0] > 31) {
+      m = parts[1] - 1;
+      d = parts[2] ?? 1;
+    } else {
+      d = parts[0];
+      m = (parts[1] ?? 1) - 1;
+    }
+    if (m >= 0 && m <= 11 && d >= 1 && d <= 31)
+      return { day: d, month: m, monthName: MESES[m] ?? "" };
+  }
+  return null;
+}
+
+function formatDateRange(empieza: string, termina: string): string {
+  const ini = parseDateStr(empieza);
+  const fin = parseDateStr(termina);
+  if (!ini) return termina ? `Fechas: ${termina}` : "—";
+  if (!fin) return `Fechas: ${ini.day} de ${ini.monthName}`;
+  if (ini.month === fin.month)
+    return `Fechas: ${ini.day} al ${fin.day} de ${ini.monthName}`;
+  return `Fechas: ${ini.day} de ${ini.monthName} al ${fin.day} de ${fin.monthName}`;
 }
 
 export default function Home() {
@@ -91,17 +134,32 @@ export default function Home() {
 
         {!loading && data && (
           <div className="space-y-8">
-            {/* Próximo retiro mensual */}
+            {/* Retiros mensuales (del mes actual o del próximo) */}
             <section className="card-glass p-6 sm:p-8">
               <h2 className="mb-4 text-xl font-semibold text-green-400">
-                Próximo retiro mensual
+                Retiros mensuales
               </h2>
-              {data.proximoRetiro ? (
-                <p className="text-2xl text-white">
-                  {formatDate(data.proximoRetiro)}
-                </p>
+              {data.retirosProximos.length > 0 ? (
+                <>
+                  {data.mesRetirosLabel && (
+                    <p className="mb-3 text-slate-400">{data.mesRetirosLabel}</p>
+                  )}
+                  <ul className="space-y-2">
+                    {data.retirosProximos.map((item, i) => (
+                      <li key={`${item.fecha}-${i}`} className="text-lg text-white">
+                        {item.lugar ? (
+                          <>
+                            <span className="text-slate-300">{item.lugar}</span>
+                            {" · "}
+                          </>
+                        ) : null}
+                        {formatDate(item.fecha)}
+                      </li>
+                    ))}
+                  </ul>
+                </>
               ) : (
-                <p className="text-slate-400">No hay fecha cargada para el próximo retiro.</p>
+                <p className="text-slate-400">No hay fechas cargadas para los próximos retiros.</p>
               )}
             </section>
 
@@ -146,42 +204,43 @@ export default function Home() {
                 <p className="text-slate-400">No hay actividades cargadas.</p>
               ) : (
                 <ul className="space-y-5">
-                  {data.crtCv.map((row, i) => (
-                    <li
-                      key={i}
-                      className="rounded-lg border border-white/10 bg-white/5 p-4"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded bg-green-900/50 px-2 py-0.5 text-sm text-green-300">
-                          {getVal(row, "tipo_de_actividad", "tipo", "Tipo de actividad") || "Actividad"}
-                        </span>
-                        <span className="text-slate-300">
-                          {getVal(row, "lugar", "Lugar") || ""}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-white">
-                        {getVal(row, "fecha_de_inicio", "fecha_inicio", "Fecha de inicio")}
-                        {getVal(row, "fecha_de_fin", "fecha_fin", "Fecha de fin")
-                          ? ` – ${getVal(row, "fecha_de_fin", "fecha_fin", "Fecha de fin")}`
-                          : ""}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-400">
-                        Predicador: {getVal(row, "predicador", "Predicador") || "—"}
-                        {" · "}
-                        Director: {getVal(row, "director", "Director") || "—"}
-                      </p>
-                      {getVal(row, "link_inscripción", "link_inscripcion", "link", "Link de inscripción") && (
-                        <a
-                          href={getVal(row, "link_inscripción", "link_inscripcion", "link", "Link de inscripción")}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="link-inscripcion mt-3"
-                        >
-                          Inscripción
-                        </a>
-                      )}
-                    </li>
-                  ))}
+                  {data.crtCv.map((row, i) => {
+                    const empieza = getVal(row, "empieza", "fecha_de_inicio", "fecha_inicio");
+                    const termina = getVal(row, "termina", "fecha_de_fin", "fecha_fin");
+                    const linkInscripcion = getVal(row, "inscripción", "inscripcion", "link_inscripcion", "link");
+                    return (
+                      <li
+                        key={i}
+                        className="rounded-lg border border-white/10 bg-white/5 p-5"
+                      >
+                        <p className="text-lg font-medium text-white">
+                          {getVal(row, "actividad", "tipo_de_actividad", "tipo", "Tipo de actividad") || "Actividad"}
+                        </p>
+                        <p className="mt-1 text-slate-300">
+                          <span className="text-slate-400">Lugar:</span> {getVal(row, "lugar", "Lugar") || "—"}
+                        </p>
+                        <p className="mt-1 text-slate-300">
+                          {formatDateRange(empieza, termina)}
+                        </p>
+                        <p className="mt-1 text-slate-300">
+                          <span className="text-slate-400">Sacerdote:</span> {getVal(row, "sacerdote", "predicador", "Predicador") || "—"}
+                        </p>
+                        <p className="mt-1 text-slate-300">
+                          <span className="text-slate-400">Director:</span> {getVal(row, "director", "Director") || "—"}
+                        </p>
+                        {linkInscripcion ? (
+                          <a
+                            href={linkInscripcion.startsWith("http") ? linkInscripcion : `https://${linkInscripcion}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="link-inscripcion mt-4 inline-flex"
+                          >
+                            Inscripción
+                          </a>
+                        ) : null}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </section>
@@ -194,13 +253,27 @@ export default function Home() {
               {data.cumpleanosProximos.length === 0 ? (
                 <p className="text-slate-400">No hay cumpleaños en los próximos 30 días.</p>
               ) : (
-                <ul className="space-y-2">
-                  {data.cumpleanosProximos.map((item, i) => (
-                    <li key={i} className="flex justify-between gap-4 text-white">
-                      <span>{item.nombre}</span>
-                      <span className="text-slate-400">{formatDate(item.fecha)}</span>
-                    </li>
-                  ))}
+                <ul className="space-y-3">
+                  {data.cumpleanosProximos.map((item, i) => {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const esHoy = item.fecha === today;
+                    return (
+                      <li
+                        key={i}
+                        className={`flex flex-wrap items-center justify-between gap-3 rounded-lg px-3 py-2 ${esHoy ? "bg-green-900/40 ring-1 ring-green-500/50" : ""}`}
+                      >
+                        <span className={esHoy ? "font-semibold text-white" : "text-white"}>
+                          {item.nombre}
+                          {esHoy && (
+                            <span className="ml-2 rounded bg-green-600 px-2 py-0.5 text-xs font-medium text-white">
+                              Hoy
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-slate-400">{formatDate(item.fecha)}</span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </section>

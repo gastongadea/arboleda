@@ -26,8 +26,8 @@ async function getSheetValues(range: string): Promise<string[][]> {
     spreadsheetId: SPREADSHEET_ID,
     range,
   });
-  const rows = (res.data.values ?? []) as string[][];
-  return rows.map((row) => row.map((c) => String(c ?? "").trim()));
+  const rows = (res.data.values ?? []) as unknown[][];
+  return rows.map((row) => (row ?? []).map((c) => String(c != null && c !== "" ? c : "").trim()));
 }
 
 function rowsToObjects(rows: string[][]): Record<string, string>[] {
@@ -55,42 +55,91 @@ function parseMonth(label: string): number {
   return m[key] ?? m[key.slice(0, 3)] ?? -1;
 }
 
-function parseDate(s: string): Date | null {
-  if (!s) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + "T12:00:00");
-  const [d, m, y] = s.split(/[\/\-]/).map(Number);
-  if (!d || !m) return null;
-  const year = y != null ? (y < 100 ? 2000 + y : y) : new Date().getFullYear();
-  const month = m >= 1 && m <= 12 ? m - 1 : -1;
-  if (month < 0) return null;
-  const date = new Date(year, month, d);
-  return isNaN(date.getTime()) ? null : date;
-}
-
-/** Hoja "rt": columnas = meses, filas = fechas. Devuelve lista de fechas. */
-async function getRetirosMensuales(): Promise<string[]> {
-  const rows = await getSheetValues("rt!A:Z");
-  const dates: string[] = [];
-  for (let r = 1; r < rows.length; r++) {
-    for (let c = 0; c < (rows[r]?.length ?? 0); c++) {
-      const cell = (rows[r][c] ?? "").trim();
-      if (!cell) continue;
-      const num = parseInt(cell, 10);
-      if (!isNaN(num) && num >= 1 && num <= 31 && rows[0]?.[c]) {
-        const monthLabel = (rows[0][c] ?? "").trim();
-        const year = new Date().getFullYear();
-        const month = parseMonth(monthLabel);
-        if (month >= 0) {
-          const d = new Date(year, month, num);
-          if (!isNaN(d.getTime())) dates.push(d.toISOString().slice(0, 10));
-        }
-      } else if (/^\d{4}-\d{2}-\d{2}$/.test(cell) || /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(cell)) {
-        const d = parseDate(cell);
-        if (d) dates.push(d.toISOString().slice(0, 10));
+function parseDate(s: string | number): Date | null {
+  if (s === "" || s == null) return null;
+  const str = String(s).trim();
+  if (!str) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return new Date(str + "T12:00:00");
+  const num = Number(str);
+  if (!isNaN(num) && num > 0 && num < 100000) {
+    const excelEpoch = new Date(1899, 11, 30);
+    const d = new Date(excelEpoch.getTime() + num * 86400 * 1000);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const parts = str.split(/[\/\-\.]/).map((p) => parseInt(p.trim(), 10));
+  if (parts.length >= 2) {
+    let d: number, m: number, y: number;
+    if (parts.length === 2) {
+      d = parts[0];
+      m = parts[1];
+      y = new Date().getFullYear();
+    } else {
+      if (parts[0] > 31) {
+        y = parts[0];
+        m = parts[1];
+        d = parts[2];
+      } else if (parts[2] > 31) {
+        d = parts[0];
+        m = parts[1];
+        y = parts[2];
+      } else {
+        d = parts[0];
+        m = parts[1];
+        y = parts[2];
       }
+      if (y != null && y < 100) y = 2000 + y;
+    }
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      const date = new Date(y ?? new Date().getFullYear(), m - 1, d);
+      return isNaN(date.getTime()) ? null : date;
     }
   }
-  return Array.from(new Set(dates)).sort();
+  return null;
+}
+
+type RetiroItem = { fecha: string; lugar: string };
+
+/**
+ * Hoja "rt": A = Lugar, B a L = meses (febrero a diciembre).
+ * Filas 2 a 8 = datos; cada celda en B-L es una fecha completa (ej. "5/2/2026", "9/3/2026").
+ * Celdas vacías = no hay retiro en ese mes para esa fila.
+ */
+async function getRetirosMensuales(): Promise<RetiroItem[]> {
+  const rows = await getSheetValues("rt!A:L");
+  const items: RetiroItem[] = [];
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r] ?? [];
+    const lugar = (row[0] ?? "").trim();
+    for (let c = 1; c <= 11; c++) {
+      const raw = row[c];
+      const cell = raw != null ? String(raw).trim() : "";
+      if (!cell) continue;
+      const d = parseDate(cell);
+      if (d) items.push({ fecha: d.toISOString().slice(0, 10), lugar });
+    }
+  }
+  return items.sort((a, b) => a.fecha.localeCompare(b.fecha));
+}
+
+/** Retiros del mes actual (próximos) o del próximo mes si ya pasaron todos los del actual. */
+function getRetirosProximosDelMes(retiros: RetiroItem[], today: string): RetiroItem[] {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1;
+  const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
+
+  const inMonth = (fecha: string, y: number, m: number) => {
+    const [yy, mm] = fecha.split("-").map(Number);
+    return yy === y && mm === m + 1;
+  };
+
+  const retirosEsteMes = retiros.filter((x) => inMonth(x.fecha, currentYear, currentMonth));
+  const retirosProximoMes = retiros.filter((x) => inMonth(x.fecha, nextYear, nextMonth));
+  const futurosEsteMes = retirosEsteMes.filter((x) => x.fecha >= today);
+
+  if (futurosEsteMes.length > 0) return futurosEsteMes;
+  return retirosProximoMes;
 }
 
 export async function GET() {
@@ -106,24 +155,53 @@ export async function GET() {
       getRetirosMensuales(),
       getSheetValues("crt-cv!A:Z"),
       getSheetValues("ces!A:Z"),
-      getSheetValues("'cumpleaños'!A:Z"),
+      getSheetValues("Cumples!A:B"),
     ]);
 
-    const crtCv = rowsToObjects(crtCvRows);
+    let crtCv = rowsToObjects(crtCvRows);
     const ces = rowsToObjects(cesRows);
-    const cumpleanos = rowsToObjects(cumpleanosRows);
+    let cumpleanos = rowsToObjects(cumpleanosRows);
+    if (cumpleanos.length === 0 && cumpleanosRows.length >= 1) {
+      const header = (cumpleanosRows[0] ?? []).map((h) => String(h).toLowerCase().replace(/\s+/g, "_"));
+      const nameIdx = header.findIndex((h) => /full_name|nombre|name|nom/.test(h)) >= 0
+        ? header.findIndex((h) => /full_name|nombre|name|nom/.test(h))
+        : 0;
+      const dateIdx = header.findIndex((h) => /nacimiento|fecha|birth/.test(h)) >= 0
+        ? header.findIndex((h) => /nacimiento|fecha|birth/.test(h))
+        : 1;
+      cumpleanos = cumpleanosRows.slice(1).map((row) => ({
+        nombre: (row[nameIdx] ?? "").trim() || (row[0] ?? "").trim(),
+        fecha: (row[dateIdx] ?? "").trim() || (row[1] ?? "").trim(),
+      }));
+      cumpleanos = cumpleanos.filter((r) => r.nombre || r.fecha);
+    }
 
     const today = new Date().toISOString().slice(0, 10);
-    const proximoRetiro = retiros.find((d) => d >= today) ?? null;
+
+    crtCv = crtCv.filter((row) => {
+      const fin = (row.termina ?? row.fecha_de_fin ?? row.fecha_fin ?? "").trim();
+      if (!fin) return true;
+      const d = parseDate(fin);
+      if (!d) return true;
+      return d.toISOString().slice(0, 10) >= today;
+    });
+
+    const retirosProximos = getRetirosProximosDelMes(retiros, today);
 
     const in30Days = new Date();
     in30Days.setDate(in30Days.getDate() + 30);
     const end = in30Days.toISOString().slice(0, 10);
+
+    const getNombre = (row: Record<string, string>) =>
+      row.full_name ?? row.nombre ?? row.name ?? row.nom ?? "";
+    const getFechaNac = (row: Record<string, string>) =>
+      row.nacimiento ?? row.fecha ?? row.fecha_de_nacimiento ?? row.fecha_nacimiento ?? "";
+
     const cumpleanosProximos = cumpleanos
       .map((row) => {
-        const nombre = row.nombre ?? row.name ?? "";
-        const fecha = row.fecha ?? row.fecha_de_nacimiento ?? row["fecha de nacimiento"] ?? "";
-        const d = parseDate(fecha);
+        const nombre = getNombre(row).trim();
+        const fechaRaw = getFechaNac(row);
+        const d = parseDate(fechaRaw);
         if (!d || !nombre) return null;
         const thisYear = new Date(new Date().getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10);
         if (thisYear >= today && thisYear <= end) return { nombre, fecha: thisYear };
@@ -132,8 +210,18 @@ export async function GET() {
       .filter((x): x is { nombre: string; fecha: string } => x != null)
       .sort((a, b) => a.fecha.localeCompare(b.fecha));
 
+    const mesRetirosLabel =
+      retirosProximos.length > 0
+        ? (() => {
+            const [y, m] = retirosProximos[0].fecha.split("-").map(Number);
+            const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+            return `${monthNames[m - 1]} ${y}`;
+          })()
+        : null;
+
     return NextResponse.json({
-      proximoRetiro,
+      retirosProximos,
+      mesRetirosLabel,
       ces,
       crtCv,
       cumpleanosProximos,

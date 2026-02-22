@@ -149,12 +149,12 @@ vercel --prod
 
 Los nombres de las **pestañas** deben coincidir exactamente con los que usa la app:
 
-| Hoja          | Contenido |
-|---------------|-----------|
-| **rt**        | Retiros mensuales: columnas = meses, filas = fechas. La app muestra el **próximo** retiro. |
-| **crt-cv**    | Actividades (Curso de Retiro y Convivencia): Tipo, Lugar, Fechas, Predicador, Director, link de inscripción. |
-| **ces**       | Círculos de estudio: Lugar, día, hora, encargado. |
-| **cumpleaños**| Dos columnas: nombre y fecha de nacimiento. La app muestra cumpleaños en los **próximos 30 días**. |
+| Hoja       | Contenido |
+|------------|-----------|
+| **rt**     | Retiros mensuales: columna A = Lugar, B a L = meses (febrero a diciembre). Cada fila = retiros de cada mes. La app muestra los retiros del mes actual o del próximo. |
+| **crt-cv** | Actividades: Actividad, Lugar, Empieza (C), Termina (D), Sacerdote, Director, Inscripción (G). |
+| **ces**    | Círculos de estudio: Lugar, día, hora, encargado. |
+| **Cumples**| Dos columnas: A = Full Name, B = Nacimiento. La app muestra cumpleaños en los **próximos 30 días**. |
 
 ---
 
