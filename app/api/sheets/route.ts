@@ -90,7 +90,7 @@ async function getRetirosMensuales(): Promise<string[]> {
       }
     }
   }
-  return [...new Set(dates)].sort();
+  return Array.from(new Set(dates)).sort();
 }
 
 export async function GET() {
