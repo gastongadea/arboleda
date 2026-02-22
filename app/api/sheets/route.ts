@@ -1,9 +1,11 @@
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 const SPREADSHEET_ID = process.env.SHEET_ID || "1KD20URgHePrH-4Hb6Z_eSxMhqF6xpMlX4uS8oWEvofc";
 
-function getAuth() {
+function getAuth(readOnly = true) {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!raw) throw new Error("Falta GOOGLE_SERVICE_ACCOUNT_JSON");
   let credentials: object;
@@ -14,13 +16,17 @@ function getAuth() {
   }
   const auth = new google.auth.GoogleAuth({
     credentials,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+    scopes: [
+      readOnly
+        ? "https://www.googleapis.com/auth/spreadsheets.readonly"
+        : "https://www.googleapis.com/auth/spreadsheets",
+    ],
   });
   return auth;
 }
 
 async function getSheetValues(range: string): Promise<string[][]> {
-  const auth = getAuth();
+  const auth = getAuth(true);
   const sheets = google.sheets({ version: "v4", auth });
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
@@ -28,6 +34,30 @@ async function getSheetValues(range: string): Promise<string[][]> {
   });
   const rows = (res.data.values ?? []) as unknown[][];
   return rows.map((row) => (row ?? []).map((c) => String(c != null && c !== "" ? c : "").trim()));
+}
+
+/** Lee e incrementa el contador de visitas en la hoja "stats", celda A1. La cuenta de servicio debe tener permisos de edición. */
+async function getAndIncrementVisitCount(): Promise<number> {
+  try {
+    const auth = getAuth(false);
+    const sheets = google.sheets({ version: "v4", auth });
+    const range = "stats!A1";
+    const getRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range,
+    });
+    const current = Math.max(0, parseInt(String((getRes.data.values ?? [])[0]?.[0] ?? "0"), 10) || 0);
+    const next = current + 1;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [[next]] },
+    });
+    return next;
+  } catch {
+    return 0;
+  }
 }
 
 function rowsToObjects(rows: string[][]): Record<string, string>[] {
@@ -219,12 +249,15 @@ export async function GET() {
           })()
         : null;
 
+    const visitCount = await getAndIncrementVisitCount();
+
     return NextResponse.json({
       retirosProximos,
       mesRetirosLabel,
       ces,
       crtCv,
       cumpleanosProximos,
+      visitCount,
     });
   } catch (e) {
     console.error(e);

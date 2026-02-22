@@ -68,7 +68,7 @@ La app lee la planilla con la **Google Sheets API** y una **cuenta de servicio**
    `arboleda-sheets-reader@tu-proyecto.iam.gserviceaccount.com`
 2. Abre tu planilla de Google Sheets.
 3. **Compartir** (botón arriba a la derecha).
-4. Pega ese **email** y asígnale permiso **“Lector”** (solo lectura).
+4. Pega ese **email** y asígnale permiso **“Lector”** para solo leer datos. Si quieres que se cuenten los ingresos a la página, asígnale **“Editor”** (la app escribe el contador en la hoja **stats**).
 5. Desmarca “Notificar a las personas” si no quieres enviar correo → **Compartir**.
 
 Así la app podrá leer la planilla sin que esté publicada en la web.
@@ -94,13 +94,23 @@ Luego reinicia `npm run dev`.
 
 ---
 
-## 3. Imagen de fondo
+## 3. Contador de visitas (opcional)
+
+Si quieres que la app cuente cuántas veces se entra a la página:
+
+1. En la misma planilla, crea una hoja llamada **stats** (minúsculas).
+2. En la celda **A1** escribe **0** (o déjala vacía).
+3. La cuenta de servicio debe tener permiso **Editor** en la planilla (no solo Lector), porque la app actualiza ese número en cada visita.
+
+El número de ingresos se muestra en **Configuración** (icono de rueda) tras introducir la clave de acceso.
+
+## 4. Imagen de fondo
 
 Copia tu imagen **`arboleda.png`** en la carpeta **`public`** del proyecto (`public/arboleda.png`). Si no está, la web sigue funcionando con el degradado.
 
 ---
 
-## 4. Desarrollo local
+## 5. Desarrollo local
 
 ```bash
 npm install
@@ -109,9 +119,11 @@ npm run dev
 
 Abre [http://localhost:3000](http://localhost:3000). Para que carguen los datos, necesitas tener configurado `GOOGLE_SERVICE_ACCOUNT_JSON` en `.env.local` y haber compartido la planilla con el email de la cuenta de servicio.
 
+Los datos se leen de la planilla **en cada carga** (sin caché), así que los cambios en la hoja se ven al recargar la página o al usar **Configuración** → **Actualizar datos**. El icono de rueda (arriba a la derecha) abre Configuración; la clave por defecto está en el código (`CONFIG_PASSWORD` en `app/page.tsx`) y permite ver el contador de ingresos y el botón de refresh.
+
 ---
 
-## 5. Despliegue en Vercel (producción)
+## 6. Despliegue en Vercel (producción)
 
 ### Desde GitHub (recomendado)
 

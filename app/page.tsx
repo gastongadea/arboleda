@@ -3,12 +3,15 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 
+const CONFIG_PASSWORD = "4rb0sg";
+
 type SheetData = {
   retirosProximos: { fecha: string; lugar: string }[];
   mesRetirosLabel: string | null;
   ces: Record<string, string>[];
   crtCv: Record<string, string>[];
   cumpleanosProximos: { nombre: string; fecha: string }[];
+  visitCount?: number;
 };
 
 function formatDate(s: string): string {
@@ -73,24 +76,117 @@ function formatDateRange(empieza: string, termina: string): string {
   return `Fechas: ${ini.day} de ${ini.monthName} al ${fin.day} de ${fin.monthName}`;
 }
 
+function loadData(): Promise<SheetData> {
+  return fetch("/api/sheets", { cache: "no-store" })
+    .then((r) => {
+      if (!r.ok) throw new Error("Error al cargar datos");
+      return r.json();
+    });
+}
+
 export default function Home() {
   const [data, setData] = useState<SheetData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [configOpen, setConfigOpen] = useState(false);
+  const [configUnlocked, setConfigUnlocked] = useState(false);
+  const [configPassword, setConfigPassword] = useState("");
+  const [configError, setConfigError] = useState("");
 
-  useEffect(() => {
-    fetch("/api/sheets")
-      .then((r) => {
-        if (!r.ok) throw new Error("Error al cargar datos");
-        return r.json();
-      })
+  const refresh = () => {
+    setLoading(true);
+    setError(null);
+    loadData()
       .then(setData)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    refresh();
   }, []);
+
+  const handleConfigSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setConfigError("");
+    if (configPassword.trim() === CONFIG_PASSWORD) {
+      setConfigUnlocked(true);
+      setConfigPassword("");
+    } else {
+      setConfigError("Clave incorrecta");
+    }
+  };
 
   return (
     <main className="relative min-h-screen">
+      {/* Botón Configuración */}
+      <button
+        type="button"
+        onClick={() => {
+          setConfigOpen(true);
+          setConfigUnlocked(false);
+          setConfigError("");
+          setConfigPassword("");
+        }}
+        className="fixed right-4 top-4 z-20 rounded-full bg-white/10 p-2.5 text-slate-300 transition hover:bg-white/20 hover:text-white"
+        title="Configuración"
+        aria-label="Configuración"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      </button>
+
+      {/* Modal Configuración */}
+      {configOpen && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 p-4" onClick={() => setConfigOpen(false)}>
+          <div className="card-glass w-full max-w-sm rounded-xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-white">Configuración</h3>
+              <button type="button" onClick={() => setConfigOpen(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+            {!configUnlocked ? (
+              <form onSubmit={handleConfigSubmit}>
+                <label className="block text-sm text-slate-400">Clave de acceso</label>
+                <input
+                  type="password"
+                  value={configPassword}
+                  onChange={(e) => setConfigPassword(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white placeholder-slate-500 focus:border-green-500 focus:outline-none"
+                  placeholder="Introduce la clave"
+                  autoFocus
+                />
+                {configError && <p className="mt-2 text-sm text-red-400">{configError}</p>}
+                <button type="submit" className="mt-4 w-full rounded-lg bg-green-600 py-2 font-medium text-white hover:bg-green-500">
+                  Entrar
+                </button>
+              </form>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-slate-300">
+                  <span className="text-slate-400">Ingresos a la página:</span>{" "}
+                  <span className="text-xl font-semibold text-white">{data?.visitCount ?? 0}</span>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    refresh();
+                    setConfigOpen(false);
+                  }}
+                  className="w-full rounded-lg bg-green-600 py-2 font-medium text-white hover:bg-green-500"
+                >
+                  Actualizar datos (refresh)
+                </button>
+                <p className="text-xs text-slate-500">
+                  Los datos se recargan desde la planilla cada vez que entras o usas este botón.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Fondo con imagen (coloca arboleda.png en /public) */}
       <div className="fixed inset-0 -z-10">
         <div className="absolute inset-0 bg-slate-900" />
