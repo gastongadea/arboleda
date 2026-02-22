@@ -251,6 +251,8 @@ export async function GET() {
 
     const visitCount = await getAndIncrementVisitCount();
 
+    const otrasFechasLink = String((crtCvRows[0] ?? [])[7] ?? "").trim();
+
     return NextResponse.json({
       retirosProximos,
       mesRetirosLabel,
@@ -258,6 +260,7 @@ export async function GET() {
       crtCv,
       cumpleanosProximos,
       visitCount,
+      otrasFechasLink: otrasFechasLink || undefined,
     });
   } catch (e) {
     console.error(e);

@@ -12,6 +12,7 @@ type SheetData = {
   crtCv: Record<string, string>[];
   cumpleanosProximos: { nombre: string; fecha: string }[];
   visitCount?: number;
+  otrasFechasLink?: string;
 };
 
 function formatDate(s: string): string {
@@ -339,6 +340,16 @@ export default function Home() {
                   })}
                 </ul>
               )}
+              {data.otrasFechasLink ? (
+                <a
+                  href={data.otrasFechasLink.startsWith("http") ? data.otrasFechasLink : `https://${data.otrasFechasLink}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="link-inscripcion mt-6 inline-flex"
+                >
+                  Otras fechas
+                </a>
+              ) : null}
             </section>
 
             {/* Cumpleaños próximos 30 días */}
