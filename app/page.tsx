@@ -338,7 +338,7 @@ export default function Home() {
                 className="mb-2 flex w-full items-center justify-between text-left"
               >
                 <h2 className="text-xl font-semibold text-green-400">
-                  Actividades del año (Curso de Retiro y Convivencia)
+                  Actividades del año
                 </h2>
                 <span
                   className={`transform text-slate-300 transition-transform ${
@@ -412,7 +412,7 @@ export default function Home() {
                 className="mb-2 flex w-full items-center justify-between text-left"
               >
                 <h2 className="text-xl font-semibold text-green-400">
-                  Cumpleaños (próximos 30 días)
+                  Cumpleaños (30 días)
                 </h2>
                 <span
                   className={`transform text-slate-300 transition-transform ${
