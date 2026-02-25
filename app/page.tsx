@@ -93,6 +93,12 @@ export default function Home() {
   const [configUnlocked, setConfigUnlocked] = useState(false);
   const [configPassword, setConfigPassword] = useState("");
   const [configError, setConfigError] = useState("");
+  const [openSections, setOpenSections] = useState({
+    retiros: false,
+    ces: false,
+    crt: false,
+    cumples: true,
+  });
 
   const refresh = () => {
     setLoading(true);
@@ -106,6 +112,10 @@ export default function Home() {
   useEffect(() => {
     refresh();
   }, []);
+
+  const toggleSection = (id: keyof typeof openSections) => {
+    setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   const handleConfigSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -233,114 +243,156 @@ export default function Home() {
           <div className="space-y-8">
             {/* Retiros mensuales (del mes actual o del próximo) */}
             <section className="card-glass p-6 sm:p-8">
-              <h2 className="mb-4 text-xl font-semibold text-green-400">
-                Retiros mensuales
-              </h2>
-              {data.retirosProximos.length > 0 ? (
-                <>
-                  {data.mesRetirosLabel && (
-                    <p className="mb-3 text-slate-400">{data.mesRetirosLabel}</p>
-                  )}
-                  <ul className="space-y-2">
-                    {data.retirosProximos.map((item, i) => (
-                      <li key={`${item.fecha}-${i}`} className="text-lg text-white">
-                        {item.lugar ? (
-                          <>
-                            <span className="text-slate-300">{item.lugar}</span>
-                            {" · "}
-                          </>
-                        ) : null}
-                        {formatDate(item.fecha)}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : (
-                <p className="text-slate-400">No hay fechas cargadas para los próximos retiros.</p>
-              )}
+              <button
+                type="button"
+                onClick={() => toggleSection("retiros")}
+                className="mb-2 flex w-full items-center justify-between text-left"
+              >
+                <h2 className="text-xl font-semibold text-green-400">
+                  Retiros mensuales
+                </h2>
+                <span
+                  className={`transform text-slate-300 transition-transform ${
+                    openSections.retiros ? "rotate-180" : ""
+                  }`}
+                >
+                  ▼
+                </span>
+              </button>
+              {openSections.retiros &&
+                (data.retirosProximos.length > 0 ? (
+                  <>
+                    {data.mesRetirosLabel && (
+                      <p className="mb-3 text-slate-400">{data.mesRetirosLabel}</p>
+                    )}
+                    <ul className="space-y-2">
+                      {data.retirosProximos.map((item, i) => (
+                        <li key={`${item.fecha}-${i}`} className="text-lg text-white">
+                          {item.lugar ? (
+                            <>
+                              <span className="text-slate-300">{item.lugar}</span>
+                              {" · "}
+                            </>
+                          ) : null}
+                          {formatDate(item.fecha)}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <p className="text-slate-400">No hay fechas cargadas para los próximos retiros.</p>
+                ))}
             </section>
 
             {/* Círculos de estudio (semanal) */}
             <section className="card-glass p-6 sm:p-8">
-              <h2 className="mb-4 text-xl font-semibold text-green-400">
-                Círculos de estudio
-              </h2>
-              {data.ces.length === 0 ? (
-                <p className="text-slate-400">No hay círculos cargados.</p>
-              ) : (
-                <ul className="space-y-4">
-                  {data.ces.map((row, i) => (
-                    <li
-                      key={i}
-                      className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-white/10 pb-3 last:border-0 last:pb-0"
-                    >
-                      <span className="font-medium text-white">
-                        {getVal(row, "lugar", "Lugar") || "—"}
-                      </span>
-                      <span className="text-slate-300">
-                        {getVal(row, "día", "dia", "Día") || "—"}
-                      </span>
-                      <span className="text-slate-300">
-                        {getVal(row, "hora", "Hora") || "—"}
-                      </span>
-                      <span className="text-slate-400">
-                        Encargado: {getVal(row, "encargado", "Encargado") || "—"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <button
+                type="button"
+                onClick={() => toggleSection("ces")}
+                className="mb-2 flex w-full items-center justify-between text-left"
+              >
+                <h2 className="text-xl font-semibold text-green-400">
+                  Círculos de estudio
+                </h2>
+                <span
+                  className={`transform text-slate-300 transition-transform ${
+                    openSections.ces ? "rotate-180" : ""
+                  }`}
+                >
+                  ▼
+                </span>
+              </button>
+              {openSections.ces &&
+                (data.ces.length === 0 ? (
+                  <p className="text-slate-400">No hay círculos cargados.</p>
+                ) : (
+                  <ul className="space-y-4">
+                    {data.ces.map((row, i) => (
+                      <li
+                        key={i}
+                        className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-white/10 pb-3 last:border-0 last:pb-0"
+                      >
+                        <span className="font-medium text-white">
+                          {getVal(row, "lugar", "Lugar") || "—"}
+                        </span>
+                        <span className="text-slate-300">
+                          {getVal(row, "día", "dia", "Día") || "—"}
+                        </span>
+                        <span className="text-slate-300">
+                          {getVal(row, "hora", "Hora") || "—"}
+                        </span>
+                        <span className="text-slate-400">
+                          Encargado: {getVal(row, "encargado", "Encargado") || "—"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ))}
             </section>
 
             {/* Actividades del año (CRT-CV) */}
             <section className="card-glass p-6 sm:p-8">
-              <h2 className="mb-4 text-xl font-semibold text-green-400">
-                Actividades del año (Curso de Retiro y Convivencia)
-              </h2>
-              {data.crtCv.length === 0 ? (
-                <p className="text-slate-400">No hay actividades cargadas.</p>
-              ) : (
-                <ul className="space-y-5">
-                  {data.crtCv.map((row, i) => {
-                    const empieza = getVal(row, "empieza", "fecha_de_inicio", "fecha_inicio");
-                    const termina = getVal(row, "termina", "fecha_de_fin", "fecha_fin");
-                    const linkInscripcion = getVal(row, "inscripción", "inscripcion", "link_inscripcion", "link");
-                    return (
-                      <li
-                        key={i}
-                        className="rounded-lg border border-white/10 bg-white/5 p-5"
-                      >
-                        <p className="text-lg font-medium text-white">
-                          {getVal(row, "actividad", "tipo_de_actividad", "tipo", "Tipo de actividad") || "Actividad"}
-                        </p>
-                        <p className="mt-1 text-slate-300">
-                          <span className="text-slate-400">Lugar:</span> {getVal(row, "lugar", "Lugar") || "—"}
-                        </p>
-                        <p className="mt-1 text-slate-300">
-                          {formatDateRange(empieza, termina)}
-                        </p>
-                        <p className="mt-1 text-slate-300">
-                          <span className="text-slate-400">Sacerdote:</span> {getVal(row, "sacerdote", "predicador", "Predicador") || "—"}
-                        </p>
-                        <p className="mt-1 text-slate-300">
-                          <span className="text-slate-400">Director:</span> {getVal(row, "director", "Director") || "—"}
-                        </p>
-                        {linkInscripcion ? (
-                          <a
-                            href={linkInscripcion.startsWith("http") ? linkInscripcion : `https://${linkInscripcion}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="link-inscripcion mt-4 inline-flex"
-                          >
-                            Inscripción
-                          </a>
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-              {data.otrasFechasLink ? (
+              <button
+                type="button"
+                onClick={() => toggleSection("crt")}
+                className="mb-2 flex w-full items-center justify-between text-left"
+              >
+                <h2 className="text-xl font-semibold text-green-400">
+                  Actividades del año (Curso de Retiro y Convivencia)
+                </h2>
+                <span
+                  className={`transform text-slate-300 transition-transform ${
+                    openSections.crt ? "rotate-180" : ""
+                  }`}
+                >
+                  ▼
+                </span>
+              </button>
+              {openSections.crt &&
+                (data.crtCv.length === 0 ? (
+                  <p className="text-slate-400">No hay actividades cargadas.</p>
+                ) : (
+                  <ul className="space-y-5">
+                    {data.crtCv.map((row, i) => {
+                      const empieza = getVal(row, "empieza", "fecha_de_inicio", "fecha_inicio");
+                      const termina = getVal(row, "termina", "fecha_de_fin", "fecha_fin");
+                      const linkInscripcion = getVal(row, "inscripción", "inscripcion", "link_inscripcion", "link");
+                      return (
+                        <li
+                          key={i}
+                          className="rounded-lg border border-white/10 bg-white/5 p-5"
+                        >
+                          <p className="text-lg font-medium text-white">
+                            {getVal(row, "actividad", "tipo_de_actividad", "tipo", "Tipo de actividad") || "Actividad"}
+                          </p>
+                          <p className="mt-1 text-slate-300">
+                            <span className="text-slate-400">Lugar:</span> {getVal(row, "lugar", "Lugar") || "—"}
+                          </p>
+                          <p className="mt-1 text-slate-300">
+                            {formatDateRange(empieza, termina)}
+                          </p>
+                          <p className="mt-1 text-slate-300">
+                            <span className="text-slate-400">Sacerdote:</span> {getVal(row, "sacerdote", "predicador", "Predicador") || "—"}
+                          </p>
+                          <p className="mt-1 text-slate-300">
+                            <span className="text-slate-400">Director:</span> {getVal(row, "director", "Director") || "—"}
+                          </p>
+                          {linkInscripcion ? (
+                            <a
+                              href={linkInscripcion.startsWith("http") ? linkInscripcion : `https://${linkInscripcion}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="link-inscripcion mt-4 inline-flex"
+                            >
+                              Inscripción
+                            </a>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ))}
+              {openSections.crt && data.otrasFechasLink ? (
                 <a
                   href={data.otrasFechasLink.startsWith("http") ? data.otrasFechasLink : `https://${data.otrasFechasLink}`}
                   target="_blank"
@@ -354,35 +406,49 @@ export default function Home() {
 
             {/* Cumpleaños próximos 30 días */}
             <section className="card-glass p-6 sm:p-8">
-              <h2 className="mb-4 text-xl font-semibold text-green-400">
-                Cumpleaños (próximos 30 días)
-              </h2>
-              {data.cumpleanosProximos.length === 0 ? (
-                <p className="text-slate-400">No hay cumpleaños en los próximos 30 días.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {data.cumpleanosProximos.map((item, i) => {
-                    const today = new Date().toISOString().slice(0, 10);
-                    const esHoy = item.fecha === today;
-                    return (
-                      <li
-                        key={i}
-                        className={`flex flex-wrap items-center justify-between gap-3 rounded-lg px-3 py-2 ${esHoy ? "bg-green-900/40 ring-1 ring-green-500/50" : ""}`}
-                      >
-                        <span className={esHoy ? "font-semibold text-white" : "text-white"}>
-                          {item.nombre}
-                          {esHoy && (
-                            <span className="ml-2 rounded bg-green-600 px-2 py-0.5 text-xs font-medium text-white">
-                              Hoy
-                            </span>
-                          )}
-                        </span>
-                        <span className="text-slate-400">{formatDate(item.fecha)}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+              <button
+                type="button"
+                onClick={() => toggleSection("cumples")}
+                className="mb-2 flex w-full items-center justify-between text-left"
+              >
+                <h2 className="text-xl font-semibold text-green-400">
+                  Cumpleaños (próximos 30 días)
+                </h2>
+                <span
+                  className={`transform text-slate-300 transition-transform ${
+                    openSections.cumples ? "rotate-180" : ""
+                  }`}
+                >
+                  ▼
+                </span>
+              </button>
+              {openSections.cumples &&
+                (data.cumpleanosProximos.length === 0 ? (
+                  <p className="text-slate-400">No hay cumpleaños en los próximos 30 días.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {data.cumpleanosProximos.map((item, i) => {
+                      const today = new Date().toISOString().slice(0, 10);
+                      const esHoy = item.fecha === today;
+                      return (
+                        <li
+                          key={i}
+                          className={`flex flex-wrap items-center justify-between gap-3 rounded-lg px-3 py-2 ${esHoy ? "bg-green-900/40 ring-1 ring-green-500/50" : ""}`}
+                        >
+                          <span className={esHoy ? "font-semibold text-white" : "text-white"}>
+                            {item.nombre}
+                            {esHoy && (
+                              <span className="ml-2 rounded bg-green-600 px-2 py-0.5 text-xs font-medium text-white">
+                                Hoy
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-slate-400">{formatDate(item.fecha)}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ))}
             </section>
           </div>
         )}
