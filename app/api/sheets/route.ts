@@ -60,6 +60,83 @@ async function getAndIncrementVisitCount(): Promise<number> {
   }
 }
 
+/** Lee la sección de misas próximas desde la web de la capellanía y devuelve hasta 7 bloques de texto (uno por día). */
+async function getMisasCampus(): Promise<string[]> {
+  try {
+    const res = await fetch("https://www.austral.edu.ar/capellania/", { cache: "no-store" });
+    if (!res.ok) return [];
+    const html = await res.text();
+    const containerMatch = html.match(
+      /<div[^>]+class="[^"]*mass(?:es)?-container[^"]*"[^>]*>([\s\S]*?)<\/div>/i
+    );
+    const containerInner = containerMatch?.[1] ?? "";
+    if (!containerInner) return [];
+
+    const colRegex =
+      /<div[^>]+class="[^"]*mass-column[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/gi;
+    const blocks: string[] = [];
+    let colMatch: RegExpExecArray | null;
+
+    const toText = (htmlPart: string | undefined) =>
+      (htmlPart ?? "")
+        .replace(/<br\s*\/?>/gi, " ")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    while ((colMatch = colRegex.exec(containerInner)) !== null) {
+      const columnInner = colMatch[1] ?? "";
+
+      const dayMatch = columnInner.match(
+        /class="mass-card-title"[^>]*>([^<]+)<\/h3>/i
+      );
+      const dateMatch = columnInner.match(
+        /class="mass-card-header"[\s\S]*?<span[^>]*>([^<]+)<\/span>/i
+      );
+      const day = dayMatch?.[1]?.trim() ?? "";
+      const date = dateMatch?.[1]?.trim() ?? "";
+
+      const misasRegex =
+        /<div[^>]+class="[^"]*misas-box[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+      let misaMatch: RegExpExecArray | null;
+      const misaParts: string[] = [];
+
+      while ((misaMatch = misasRegex.exec(columnInner)) !== null) {
+        const boxInner = misaMatch[1] ?? "";
+        const placeMatch = boxInner.match(
+          /class="title-ubicacion"[^>]*>([^<]+)<\/h5>/i
+        );
+        const place = placeMatch?.[1]?.trim() ?? "";
+
+        const liRegex =
+          /<li[^>]*>(?:<i[^>]*>[\s\S]*?<\/i>)?\s*([^<]+)<\/li>/gi;
+        let liMatch: RegExpExecArray | null;
+        const times: string[] = [];
+        while ((liMatch = liRegex.exec(boxInner)) !== null) {
+          const t = liMatch[1]?.trim();
+          if (t) times.push(t);
+        }
+
+        if (place && times.length > 0) {
+          misaParts.push(`${place} ${times.join(" ")}`);
+        } else if (place) {
+          misaParts.push(place);
+        }
+      }
+
+      const header = [day, date].filter(Boolean).join(" ");
+      const body = misaParts.join(" · ");
+      const combined = [header, body].filter(Boolean).join(" · ");
+      if (combined) blocks.push(combined);
+      if (blocks.length >= 7) break;
+    }
+    return blocks;
+  } catch {
+    return [];
+  }
+}
+
 function rowsToObjects(rows: string[][]): Record<string, string>[] {
   if (rows.length < 2) return [];
   const headers = rows[0].map((h) => h.toLowerCase().replace(/\s+/g, "_"));
@@ -250,6 +327,7 @@ export async function GET() {
         : null;
 
     const visitCount = await getAndIncrementVisitCount();
+    const misasCampus = await getMisasCampus();
 
     const otrasFechasLink = String((crtCvRows[0] ?? [])[7] ?? "").trim();
 
@@ -260,6 +338,7 @@ export async function GET() {
       crtCv,
       cumpleanosProximos,
       visitCount,
+      misasCampus,
       otrasFechasLink: otrasFechasLink || undefined,
     });
   } catch (e) {

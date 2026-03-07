@@ -13,6 +13,7 @@ type SheetData = {
   cumpleanosProximos: { nombre: string; fecha: string }[];
   visitCount?: number;
   otrasFechasLink?: string;
+   misasCampus?: string[];
 };
 
 function formatDate(s: string): string {
@@ -94,10 +95,11 @@ export default function Home() {
   const [configPassword, setConfigPassword] = useState("");
   const [configError, setConfigError] = useState("");
   const [openSections, setOpenSections] = useState({
+    misas: false,
     retiros: false,
     ces: false,
     crt: false,
-    cumples: true,
+    cumples: false,
   });
 
   const refresh = () => {
@@ -241,6 +243,61 @@ export default function Home() {
 
         {!loading && data && (
           <div className="space-y-8">
+            {/* Enlace a Misas en el Campus */}
+            <section className="card-glass p-6 sm:p-8 sm:py-4">
+              <a 
+                href="https://www.austral.edu.ar/capellania/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center justify-between group"
+              >
+                <h2 className="text-xl font-semibold text-green-400 group-hover:text-green-300 transition-colors">
+                  Misas en el campus
+                </h2>
+                <span className="text-slate-300 group-hover:translate-x-1 transition-transform">
+                  Ir a la web ↗
+                </span>
+              </a>
+            </section>
+            {/* Misas en el campus */}
+            {/*
+            <section className="card-glass p-6 sm:p-8">
+              <button
+                type="button"
+                onClick={() => toggleSection("misas")}
+                className="mb-2 flex w-full items-center justify-between text-left"
+              >
+                <h2 className="text-xl font-semibold text-green-400">
+                  Misas en el campus
+                </h2>
+                <span
+                  className={`transform text-slate-300 transition-transform ${
+                    openSections.misas ? "rotate-180" : ""
+                  }`}
+                >
+                  ▼
+                </span>
+              </button>
+              {openSections.misas &&
+                (data.misasCampus && data.misasCampus.length > 0 ? (
+                  <ul className="space-y-3">
+                    {data.misasCampus.map((line, idx) => (
+                      <li
+                        key={idx}
+                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100"
+                      >
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-slate-400">
+                    No hay información disponible en este momento.
+                  </p>
+                ))}
+            </section>
+            */}
+
             {/* Retiros mensuales (del mes actual o del próximo) */}
             <section className="card-glass p-6 sm:p-8">
               <button
@@ -422,6 +479,29 @@ export default function Home() {
                   ▼
                 </span>
               </button>
+              {/* Siempre mostrar los cumpleaños de hoy, incluso con la sección cerrada */}
+              {data.cumpleanosProximos.length > 0 && (
+                <ul className="mb-2 space-y-2">
+                  {data.cumpleanosProximos.map((item, i) => {
+                    const today = new Date().toISOString().slice(0, 10);
+                    if (item.fecha !== today) return null;
+                    return (
+                      <li
+                        key={`hoy-${i}`}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-green-900/40 px-3 py-2 ring-1 ring-green-500/50"
+                      >
+                        <span className="font-semibold text-white">
+                          {item.nombre}
+                          <span className="ml-2 rounded bg-green-600 px-2 py-0.5 text-xs font-medium text-white">
+                            Hoy
+                          </span>
+                        </span>
+                        <span className="text-slate-400">{formatDate(item.fecha)}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
               {openSections.cumples &&
                 (data.cumpleanosProximos.length === 0 ? (
                   <p className="text-slate-400">No hay cumpleaños en los próximos 30 días.</p>
@@ -433,7 +513,7 @@ export default function Home() {
                       return (
                         <li
                           key={i}
-                          className={`flex flex-wrap items-center justify-between gap-3 rounded-lg px-3 py-2 ${esHoy ? "bg-green-900/40 ring-1 ring-green-500/50" : ""}`}
+                          className={`flex flex-wrap items-center justify-between gap-3 rounded-lg px-3 py-2 ${esHoy ? "bg-green-900/20 ring-1 ring-green-500/30" : ""}`}
                         >
                           <span className={esHoy ? "font-semibold text-white" : "text-white"}>
                             {item.nombre}
