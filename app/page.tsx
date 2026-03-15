@@ -5,6 +5,39 @@ import Image from "next/image";
 
 const CONFIG_PASSWORD = "4rb0sg";
 
+const SECTION_IDS = ["misas", "retiros", "ces", "crt", "cumples", "recursos"] as const;
+const SECTION_LABELS: Record<(typeof SECTION_IDS)[number], string> = {
+  misas: "Misas",
+  retiros: "Retiros mensuales",
+  ces: "Círculos de estudio",
+  crt: "Actividades del año",
+  cumples: "Cumpleaños",
+  recursos: "Recursos",
+};
+
+const VISIBILITY_KEY = "arboleda-section-visibility";
+
+const DEFAULT_VISIBILITY: Record<(typeof SECTION_IDS)[number], boolean> = {
+  misas: true,
+  retiros: true,
+  ces: true,
+  crt: true,
+  cumples: true,
+  recursos: true,
+};
+
+function loadSectionVisibility(): Record<(typeof SECTION_IDS)[number], boolean> {
+  if (typeof window === "undefined") return DEFAULT_VISIBILITY;
+  try {
+    const raw = localStorage.getItem(VISIBILITY_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<Record<(typeof SECTION_IDS)[number], boolean>>;
+      return { ...DEFAULT_VISIBILITY, ...parsed };
+    }
+  } catch {}
+  return DEFAULT_VISIBILITY;
+}
+
 type SheetData = {
   retirosProximos: { fecha: string; lugar: string }[];
   mesRetirosLabel: string | null;
@@ -13,7 +46,8 @@ type SheetData = {
   cumpleanosProximos: { nombre: string; fecha: string }[];
   visitCount?: number;
   otrasFechasLink?: string;
-   misasCampus?: string[];
+  misasCampus?: string[];
+  recursos?: Record<string, string>[];
 };
 
 function formatDate(s: string): string {
@@ -35,6 +69,14 @@ function getVal(obj: Record<string, string>, ...keys: string[]): string {
     if (v) return v;
   }
   return "";
+}
+
+/** Convierte enlace de Google Drive (file/d/ID/view) a URL de miniatura para usar en <img>. */
+function imageUrlForRecurso(url: string): string {
+  if (!url?.trim()) return "";
+  const m = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (m) return `https://drive.google.com/thumbnail?id=${m[1]}`;
+  return url;
 }
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -100,7 +142,28 @@ export default function Home() {
     ces: false,
     crt: false,
     cumples: false,
+    recursos: false,
   });
+  const [sectionVisibility, setSectionVisibility] = useState<Record<(typeof SECTION_IDS)[number], boolean>>({
+    misas: true,
+    retiros: true,
+    ces: true,
+    crt: true,
+    cumples: true,
+    recursos: true,
+  });
+
+  useEffect(() => {
+    setSectionVisibility(loadSectionVisibility());
+  }, []);
+
+  const setSectionVisible = (id: (typeof SECTION_IDS)[number], visible: boolean) => {
+    const next = { ...sectionVisibility, [id]: visible };
+    setSectionVisibility(next);
+    try {
+      localStorage.setItem(VISIBILITY_KEY, JSON.stringify(next));
+    } catch {}
+  };
 
   const refresh = () => {
     setLoading(true);
@@ -181,6 +244,33 @@ export default function Home() {
                   <span className="text-slate-400">Ingresos a la página:</span>{" "}
                   <span className="text-xl font-semibold text-white">{data?.visitCount ?? 0}</span>
                 </p>
+                <div>
+                  <p className="mb-2 text-sm text-slate-400">Mostrar u ocultar secciones</p>
+                  <ul className="space-y-2">
+                    {SECTION_IDS.map((id) => (
+                      <li key={id} className="flex items-center justify-between gap-2">
+                        <label className="cursor-pointer text-sm text-white">
+                          {SECTION_LABELS[id]}
+                        </label>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={sectionVisibility[id]}
+                          onClick={() => setSectionVisible(id, !sectionVisibility[id])}
+                          className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
+                            sectionVisibility[id] ? "bg-green-600" : "bg-slate-600"
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                              sectionVisibility[id] ? "translate-x-5" : "translate-x-0.5"
+                            }`}
+                          />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
@@ -244,62 +334,35 @@ export default function Home() {
         {!loading && data && (
           <div className="space-y-8">
             {/* Enlace a Misas en el Campus */}
-            <section className="card-glass p-6 sm:p-8 sm:py-4">
-              <a 
-                href="https://www.austral.edu.ar/capellania/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center justify-between group"
+            {sectionVisibility.misas && (
+              <section
+                className={`card-glass transition-all duration-200 ${
+                  !openSections.misas ? "py-2 sm:py-2 px-6 sm:px-8" : "p-6 sm:p-8 sm:py-4"
+                }`}
               >
-                <h2 className="text-xl font-semibold text-green-400 group-hover:text-green-300 transition-colors">
-                  Misas en el campus
-                </h2>
-                <span className="text-slate-300 group-hover:translate-x-1 transition-transform">
-                  Ir a la web ↗
-                </span>
-              </a>
-            </section>
-            {/* Misas en el campus */}
-            {/*
-            <section className="card-glass p-6 sm:p-8">
-              <button
-                type="button"
-                onClick={() => toggleSection("misas")}
-                className="mb-2 flex w-full items-center justify-between text-left"
-              >
-                <h2 className="text-xl font-semibold text-green-400">
-                  Misas en el campus
-                </h2>
-                <span
-                  className={`transform text-slate-300 transition-transform ${
-                    openSections.misas ? "rotate-180" : ""
-                  }`}
+                <a 
+                  href="https://www.austral.edu.ar/capellania/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between group"
                 >
-                  ▼
-                </span>
-              </button>
-              {openSections.misas &&
-                (data.misasCampus && data.misasCampus.length > 0 ? (
-                  <ul className="space-y-3">
-                    {data.misasCampus.map((line, idx) => (
-                      <li
-                        key={idx}
-                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100"
-                      >
-                        {line}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-slate-400">
-                    No hay información disponible en este momento.
-                  </p>
-                ))}
-            </section>
-            */}
+                  <h2 className="text-xl font-semibold text-green-400 group-hover:text-green-300 transition-colors">
+                    Misas
+                  </h2>
+                  <span className="text-slate-300 group-hover:translate-x-1 transition-transform">
+                    Ir a la web ↗
+                  </span>
+                </a>
+              </section>
+            )}
 
             {/* Retiros mensuales (del mes actual o del próximo) */}
-            <section className="card-glass p-6 sm:p-8">
+            {sectionVisibility.retiros && (
+            <section
+              className={`card-glass transition-all duration-200 ${
+                !openSections.retiros ? "py-2 sm:py-2 px-6 sm:px-8" : "p-6 sm:p-8"
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => toggleSection("retiros")}
@@ -340,9 +403,15 @@ export default function Home() {
                   <p className="text-slate-400">No hay fechas cargadas para los próximos retiros.</p>
                 ))}
             </section>
+            )}
 
             {/* Círculos de estudio (semanal) */}
-            <section className="card-glass p-6 sm:p-8">
+            {sectionVisibility.ces && (
+            <section
+              className={`card-glass transition-all duration-200 ${
+                !openSections.ces ? "py-2 sm:py-2 px-6 sm:px-8" : "p-6 sm:p-8"
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => toggleSection("ces")}
@@ -386,9 +455,15 @@ export default function Home() {
                   </ul>
                 ))}
             </section>
+            )}
 
             {/* Actividades del año (CRT-CV) */}
-            <section className="card-glass p-6 sm:p-8">
+            {sectionVisibility.crt && (
+            <section
+              className={`card-glass transition-all duration-200 ${
+                !openSections.crt ? "py-2 sm:py-2 px-6 sm:px-8" : "p-6 sm:p-8"
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => toggleSection("crt")}
@@ -460,9 +535,15 @@ export default function Home() {
                 </a>
               ) : null}
             </section>
+            )}
 
             {/* Cumpleaños próximos 30 días */}
-            <section className="card-glass p-6 sm:p-8">
+            {sectionVisibility.cumples && (
+            <section
+              className={`card-glass transition-all duration-200 ${
+                !openSections.cumples ? "py-2 sm:py-2 px-6 sm:px-8" : "p-6 sm:p-8"
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => toggleSection("cumples")}
@@ -530,6 +611,73 @@ export default function Home() {
                   </ul>
                 ))}
             </section>
+            )}
+
+            {/* Recursos */}
+            {sectionVisibility.recursos && (
+            <section
+              className={`card-glass transition-all duration-200 ${
+                !openSections.recursos ? "py-2 sm:py-2 px-6 sm:px-8" : "p-6 sm:p-8"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => toggleSection("recursos")}
+                className="mb-2 flex w-full items-center justify-between text-left"
+              >
+                <h2 className="text-xl font-semibold text-green-400">
+                  Recursos
+                </h2>
+                <span
+                  className={`transform text-slate-300 transition-transform ${
+                    openSections.recursos ? "rotate-180" : ""
+                  }`}
+                >
+                  ▼
+                </span>
+              </button>
+              {openSections.recursos &&
+                (data.recursos && data.recursos.length > 0 ? (
+                  <ul className="space-y-4">
+                    {data.recursos.map((row, i) => {
+                      const titulo = getVal(row, "Título");
+                      const link = getVal(row, "Link");
+                      const imagen = getVal(row, "Imagen");
+                      if (!titulo) return null;
+                      const href = link ? (link.startsWith("http") ? link : `https://${link}`) : null;
+                      return (
+                        <li key={i} className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/5 p-3">
+                          {imagen && (
+                            <img
+                              src={imageUrlForRecurso(imagen)}
+                              alt=""
+                              className="h-12 w-12 shrink-0 rounded object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
+                            />
+                          )}
+                          {href ? (
+                            <a
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-green-300 hover:text-green-200"
+                            >
+                              {titulo}
+                            </a>
+                          ) : (
+                            <span className="text-white">{titulo}</span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="text-slate-400">No hay recursos cargados.</p>
+                ))}
+            </section>
+            )}
           </div>
         )}
 

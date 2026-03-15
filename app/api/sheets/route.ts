@@ -258,15 +258,18 @@ export async function GET() {
   }
 
   try {
-    const [retiros, crtCvRows, cesRows, cumpleanosRows] = await Promise.all([
+    const [retiros, crtCvRows, cesRows, cumpleanosRows, recursosRows] = await Promise.all([
       getRetirosMensuales(),
       getSheetValues("crt-cv!A:Z"),
       getSheetValues("ces!A:Z"),
       getSheetValues("Cumples!A:B"),
+      getSheetValues("Recursos!A:Z").catch(() => getSheetValues("recursos!A:Z").catch(() => [[] as string[]])),
     ]);
 
     let crtCv = rowsToObjects(crtCvRows);
     const ces = rowsToObjects(cesRows);
+    const recursosRaw = (recursosRows ?? []) as string[][];
+    const recursos = recursosRaw.length >= 2 ? rowsToObjects(recursosRaw) : [];
     let cumpleanos = rowsToObjects(cumpleanosRows);
     if (cumpleanos.length === 0 && cumpleanosRows.length >= 1) {
       const header = (cumpleanosRows[0] ?? []).map((h) => String(h).toLowerCase().replace(/\s+/g, "_"));
@@ -340,6 +343,7 @@ export async function GET() {
       visitCount,
       misasCampus,
       otrasFechasLink: otrasFechasLink || undefined,
+      recursos,
     });
   } catch (e) {
     console.error(e);
