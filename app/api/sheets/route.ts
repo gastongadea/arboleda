@@ -1,21 +1,18 @@
-import { google } from "googleapis";
+﻿import { google } from "googleapis";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 const SPREADSHEET_ID = process.env.SHEET_ID || "1KD20URgHePrH-4Hb6Z_eSxMhqF6xpMlX4uS8oWEvofc";
 
-const GMT3_OFFSET_MS = 3 * 60 * 60 * 1000;
+const TZ_ARG = "America/Argentina/Buenos_Aires"; // GMT-3
 
-/** Fecha de hoy y hoy+30 en GMT-3 (Argentina). Cálculo manual para que funcione igual en Vercel y local. */
+/** Fecha de hoy y hoy+30 en GMT-3 para evitar que a las 21h ya sea "ma├▒ana" en UTC. */
 function getTodayAndEndGMT3(): { today: string; end: string; year: number } {
-  const utc = new Date();
-  const arg = new Date(utc.getTime() - GMT3_OFFSET_MS);
-  const today = arg.toISOString().slice(0, 10);
-  const y = arg.getUTCFullYear();
-  const m = arg.getUTCMonth();
-  const d = arg.getUTCDate();
-  const endDate = new Date(Date.UTC(y, m, d + 30, 12, 0, 0));
+  const now = new Date();
+  const today = now.toLocaleDateString("sv-SE", { timeZone: TZ_ARG });
+  const [y, m, d] = today.split("-").map(Number);
+  const endDate = new Date(Date.UTC(y, m - 1, d + 30, 12, 0, 0));
   const end = endDate.toISOString().slice(0, 10);
   return { today, end, year: y };
 }
@@ -27,7 +24,7 @@ function getAuth(readOnly = true) {
   try {
     credentials = JSON.parse(raw);
   } catch {
-    throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON no es un JSON válido");
+    throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON no es un JSON v├ílido");
   }
   const auth = new google.auth.GoogleAuth({
     credentials,
@@ -51,7 +48,7 @@ async function getSheetValues(range: string): Promise<string[][]> {
   return rows.map((row) => (row ?? []).map((c) => String(c != null && c !== "" ? c : "").trim()));
 }
 
-/** Lee e incrementa el contador de visitas en la hoja "stats", celda A1. La cuenta de servicio debe tener permisos de edición. */
+/** Lee e incrementa el contador de visitas en la hoja "stats", celda A1. La cuenta de servicio debe tener permisos de edici├│n. */
 async function getAndIncrementVisitCount(): Promise<number> {
   try {
     const auth = getAuth(false);
@@ -81,7 +78,7 @@ export type MisasPorDia = {
   misas: { lugar: string; horarios: string[] }[];
 };
 
-/** Lee la sección de misas próximas desde la web de la capellanía (masses-container → mass-column → mass-card). */
+/** Lee la secci├│n de misas pr├│ximas desde la web de la capellan├¡a (masses-container ΓåÆ mass-column ΓåÆ mass-card). */
 async function getMisasCampus(): Promise<MisasPorDia[]> {
   try {
     const res = await fetch("https://www.austral.edu.ar/capellania/", { cache: "no-store" });
@@ -254,7 +251,7 @@ type RetiroItem = { fecha: string; lugar: string };
 /**
  * Hoja "rt": A = Lugar, B a L = meses (febrero a diciembre).
  * Filas 2 a 8 = datos; cada celda en B-L es una fecha completa (ej. "5/2/2026", "9/3/2026").
- * Celdas vacías = no hay retiro en ese mes para esa fila.
+ * Celdas vac├¡as = no hay retiro en ese mes para esa fila.
  */
 async function getRetirosMensuales(): Promise<RetiroItem[]> {
   const rows = await getSheetValues("rt!A:L");
@@ -273,7 +270,7 @@ async function getRetirosMensuales(): Promise<RetiroItem[]> {
   return items.sort((a, b) => a.fecha.localeCompare(b.fecha));
 }
 
-/** Retiros del mes actual (próximos) o del próximo mes si ya pasaron todos los del actual. */
+/** Retiros del mes actual (pr├│ximos) o del pr├│ximo mes si ya pasaron todos los del actual. */
 function getRetirosProximosDelMes(retiros: RetiroItem[], today: string): RetiroItem[] {
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -354,9 +351,8 @@ export async function GET() {
         const fechaRaw = getFechaNac(row);
         const d = parseDate(fechaRaw);
         if (!d || !nombre) return null;
-        const birthInArg = new Date(d.getTime() - GMT3_OFFSET_MS);
-        const m = birthInArg.getUTCMonth() + 1;
-        const day = birthInArg.getUTCDate();
+        const birthInArg = d.toLocaleDateString("sv-SE", { timeZone: TZ_ARG });
+        const [, m, day] = birthInArg.split("-").map(Number);
         const thisYear = `${yearGMT3}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
         if (thisYear >= today && thisYear <= end) return { nombre, fecha: thisYear };
         return null;

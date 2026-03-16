@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
@@ -9,9 +9,9 @@ const SECTION_IDS = ["misas", "retiros", "ces", "crt", "cumples", "recursos"] as
 const SECTION_LABELS: Record<(typeof SECTION_IDS)[number], string> = {
   misas: "Misas en el campus",
   retiros: "Retiros mensuales",
-  ces: "Círculos de estudio",
-  crt: "Actividades del año",
-  cumples: "Cumpleaños",
+  ces: "C├¡rculos de estudio",
+  crt: "Actividades del a├▒o",
+  cumples: "Cumplea├▒os",
   recursos: "Recursos",
 };
 
@@ -56,11 +56,9 @@ type SheetData = {
   recursos?: Record<string, string>[];
 };
 
-/** Fecha de hoy en GMT-3 (Argentina). Mismo criterio que en la API para que coincida en Vercel y local. */
+/** Fecha de hoy en GMT-3 (Argentina) para que "hoy" no cambie a las 21h por UTC. */
 function getTodayGMT3(): string {
-  const utc = new Date();
-  const arg = new Date(utc.getTime() - 3 * 60 * 60 * 1000);
-  return arg.toISOString().slice(0, 10);
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
 }
 
 function formatDate(s: string): string {
@@ -76,7 +74,7 @@ function formatDate(s: string): string {
 }
 
 function getVal(obj: Record<string, string>, ...keys: string[]): string {
-  const norm = (k: string) => k?.toLowerCase().replace(/\s+/g, "_").replace(/ó/g, "o") ?? "";
+  const norm = (k: string) => k?.toLowerCase().replace(/\s+/g, "_").replace(/├│/g, "o") ?? "";
   for (const k of keys) {
     const v = obj[norm(k)] ?? obj[k ?? ""];
     if (v) return v;
@@ -126,7 +124,7 @@ function parseDateStr(s: string): { day: number; month: number; monthName: strin
 function formatDateRange(empieza: string, termina: string): string {
   const ini = parseDateStr(empieza);
   const fin = parseDateStr(termina);
-  if (!ini) return termina ? `Fechas: ${termina}` : "—";
+  if (!ini) return termina ? `Fechas: ${termina}` : "ΓÇö";
   if (!fin) return `Fechas: ${ini.day} de ${ini.monthName}`;
   if (ini.month === fin.month)
     return `Fechas: ${ini.day} al ${fin.day} de ${ini.monthName}`;
@@ -208,7 +206,7 @@ export default function Home() {
 
   return (
     <main className="relative min-h-screen">
-      {/* Botón Configuración */}
+      {/* Bot├│n Configuraci├│n */}
       <button
         type="button"
         onClick={() => {
@@ -218,8 +216,8 @@ export default function Home() {
           setConfigPassword("");
         }}
         className="fixed right-4 top-4 z-20 rounded-full bg-white/10 p-2.5 text-slate-300 transition hover:bg-white/20 hover:text-white"
-        title="Configuración"
-        aria-label="Configuración"
+        title="Configuraci├│n"
+        aria-label="Configuraci├│n"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="3" />
@@ -227,13 +225,13 @@ export default function Home() {
         </svg>
       </button>
 
-      {/* Modal Configuración */}
+      {/* Modal Configuraci├│n */}
       {configOpen && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 p-4" onClick={() => setConfigOpen(false)}>
           <div className="card-glass w-full max-w-sm rounded-xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">Configuración</h3>
-              <button type="button" onClick={() => setConfigOpen(false)} className="text-slate-400 hover:text-white">✕</button>
+              <h3 className="text-lg font-semibold text-white">Configuraci├│n</h3>
+              <button type="button" onClick={() => setConfigOpen(false)} className="text-slate-400 hover:text-white">Γ£ò</button>
             </div>
             {!configUnlocked ? (
               <form onSubmit={handleConfigSubmit}>
@@ -254,7 +252,7 @@ export default function Home() {
             ) : (
               <div className="space-y-4">
                 <p className="text-slate-300">
-                  <span className="text-slate-400">Ingresos a la página:</span>{" "}
+                  <span className="text-slate-400">Ingresos a la p├ígina:</span>{" "}
                   <span className="text-xl font-semibold text-white">{data?.visitCount ?? 0}</span>
                 </p>
                 <div>
@@ -295,7 +293,7 @@ export default function Home() {
                   Actualizar datos (refresh)
                 </button>
                 <p className="text-xs text-slate-500">
-                  Los datos se recargan desde la planilla cada vez que entras o usas este botón.
+                  Los datos se recargan desde la planilla cada vez que entras o usas este bot├│n.
                 </p>
               </div>
             )}
@@ -339,7 +337,7 @@ export default function Home() {
           <div className="card-glass mb-6 rounded-xl p-6 text-center text-red-300">
             <p>{error}</p>
             <p className="mt-2 text-sm text-slate-400">
-              Revisa GOOGLE_SERVICE_ACCOUNT_JSON y que la planilla esté compartida con el email de la cuenta de servicio.
+              Revisa GOOGLE_SERVICE_ACCOUNT_JSON y que la planilla est├⌐ compartida con el email de la cuenta de servicio.
             </p>
           </div>
         )}
@@ -359,14 +357,14 @@ export default function Home() {
                   className="mb-2 flex w-full items-center justify-between text-left"
                 >
                   <h2 className="text-xl font-semibold text-green-400">
-                    Misas en el campus
+                    Misas
                   </h2>
                   <span
                     className={`transform text-slate-300 transition-transform ${
                       openSections.misas ? "rotate-180" : ""
                     }`}
                   >
-                    ▼
+                    Γû╝
                   </span>
                 </button>
                 {openSections.misas && (
@@ -384,7 +382,7 @@ export default function Home() {
                                   {m.lugar && <span className="font-medium text-white">{m.lugar}</span>}
                                   {m.horarios.length > 0 && (
                                     <span className="text-slate-300">
-                                      {m.lugar ? " — " : ""}
+                                      {m.lugar ? " ΓÇö " : ""}
                                       {m.horarios.join(", ")}
                                     </span>
                                   )}
@@ -404,7 +402,7 @@ export default function Home() {
                         rel="noopener noreferrer"
                         className="text-green-300 hover:text-green-200"
                       >
-                        Ir a la web de Capellanía ↗
+                        Ir a la web de Capellan├¡a Γåù
                       </a>
                     </p>
                   </>
@@ -412,7 +410,7 @@ export default function Home() {
               </section>
             )}
 
-            {/* Retiros mensuales (del mes actual o del próximo) */}
+            {/* Retiros mensuales (del mes actual o del pr├│ximo) */}
             {sectionVisibility.retiros && (
             <section
               className={`card-glass transition-all duration-200 ${
@@ -432,7 +430,7 @@ export default function Home() {
                     openSections.retiros ? "rotate-180" : ""
                   }`}
                 >
-                  ▼
+                  Γû╝
                 </span>
               </button>
               {openSections.retiros &&
@@ -447,7 +445,7 @@ export default function Home() {
                           {item.lugar ? (
                             <>
                               <span className="text-slate-300">{item.lugar}</span>
-                              {" · "}
+                              {" ┬╖ "}
                             </>
                           ) : null}
                           {formatDate(item.fecha)}
@@ -456,12 +454,12 @@ export default function Home() {
                     </ul>
                   </>
                 ) : (
-                  <p className="text-slate-400">No hay fechas cargadas para los próximos retiros.</p>
+                  <p className="text-slate-400">No hay fechas cargadas para los pr├│ximos retiros.</p>
                 ))}
             </section>
             )}
 
-            {/* Círculos de estudio (semanal) */}
+            {/* C├¡rculos de estudio (semanal) */}
             {sectionVisibility.ces && (
             <section
               className={`card-glass transition-all duration-200 ${
@@ -474,19 +472,19 @@ export default function Home() {
                 className="mb-2 flex w-full items-center justify-between text-left"
               >
                 <h2 className="text-xl font-semibold text-green-400">
-                  Círculos de estudio
+                  C├¡rculos de estudio
                 </h2>
                 <span
                   className={`transform text-slate-300 transition-transform ${
                     openSections.ces ? "rotate-180" : ""
                   }`}
                 >
-                  ▼
+                  Γû╝
                 </span>
               </button>
               {openSections.ces &&
                 (data.ces.length === 0 ? (
-                  <p className="text-slate-400">No hay círculos cargados.</p>
+                  <p className="text-slate-400">No hay c├¡rculos cargados.</p>
                 ) : (
                   <ul className="space-y-4">
                     {data.ces.map((row, i) => (
@@ -495,16 +493,16 @@ export default function Home() {
                         className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-white/10 pb-3 last:border-0 last:pb-0"
                       >
                         <span className="font-medium text-white">
-                          {getVal(row, "lugar", "Lugar") || "—"}
+                          {getVal(row, "lugar", "Lugar") || "ΓÇö"}
                         </span>
                         <span className="text-slate-300">
-                          {getVal(row, "día", "dia", "Día") || "—"}
+                          {getVal(row, "d├¡a", "dia", "D├¡a") || "ΓÇö"}
                         </span>
                         <span className="text-slate-300">
-                          {getVal(row, "hora", "Hora") || "—"}
+                          {getVal(row, "hora", "Hora") || "ΓÇö"}
                         </span>
                         <span className="text-slate-400">
-                          Encargado: {getVal(row, "encargado", "Encargado") || "—"}
+                          Encargado: {getVal(row, "encargado", "Encargado") || "ΓÇö"}
                         </span>
                       </li>
                     ))}
@@ -513,7 +511,7 @@ export default function Home() {
             </section>
             )}
 
-            {/* Actividades del año (CRT-CV) */}
+            {/* Actividades del a├▒o (CRT-CV) */}
             {sectionVisibility.crt && (
             <section
               className={`card-glass transition-all duration-200 ${
@@ -526,14 +524,14 @@ export default function Home() {
                 className="mb-2 flex w-full items-center justify-between text-left"
               >
                 <h2 className="text-xl font-semibold text-green-400">
-                  Actividades del año
+                  Actividades del a├▒o
                 </h2>
                 <span
                   className={`transform text-slate-300 transition-transform ${
                     openSections.crt ? "rotate-180" : ""
                   }`}
                 >
-                  ▼
+                  Γû╝
                 </span>
               </button>
               {openSections.crt &&
@@ -544,7 +542,7 @@ export default function Home() {
                     {data.crtCv.map((row, i) => {
                       const empieza = getVal(row, "empieza", "fecha_de_inicio", "fecha_inicio");
                       const termina = getVal(row, "termina", "fecha_de_fin", "fecha_fin");
-                      const linkInscripcion = getVal(row, "inscripción", "inscripcion", "link_inscripcion", "link");
+                      const linkInscripcion = getVal(row, "inscripci├│n", "inscripcion", "link_inscripcion", "link");
                       return (
                         <li
                           key={i}
@@ -554,16 +552,16 @@ export default function Home() {
                             {getVal(row, "actividad", "tipo_de_actividad", "tipo", "Tipo de actividad") || "Actividad"}
                           </p>
                           <p className="mt-1 text-slate-300">
-                            <span className="text-slate-400">Lugar:</span> {getVal(row, "lugar", "Lugar") || "—"}
+                            <span className="text-slate-400">Lugar:</span> {getVal(row, "lugar", "Lugar") || "ΓÇö"}
                           </p>
                           <p className="mt-1 text-slate-300">
                             {formatDateRange(empieza, termina)}
                           </p>
                           <p className="mt-1 text-slate-300">
-                            <span className="text-slate-400">Sacerdote:</span> {getVal(row, "sacerdote", "predicador", "Predicador") || "—"}
+                            <span className="text-slate-400">Sacerdote:</span> {getVal(row, "sacerdote", "predicador", "Predicador") || "ΓÇö"}
                           </p>
                           <p className="mt-1 text-slate-300">
-                            <span className="text-slate-400">Director:</span> {getVal(row, "director", "Director") || "—"}
+                            <span className="text-slate-400">Director:</span> {getVal(row, "director", "Director") || "ΓÇö"}
                           </p>
                           {linkInscripcion ? (
                             <a
@@ -572,7 +570,7 @@ export default function Home() {
                               rel="noopener noreferrer"
                               className="link-inscripcion mt-4 inline-flex"
                             >
-                              Inscripción
+                              Inscripci├│n
                             </a>
                           ) : null}
                         </li>
@@ -593,7 +591,7 @@ export default function Home() {
             </section>
             )}
 
-            {/* Cumpleaños próximos 30 días */}
+            {/* Cumplea├▒os pr├│ximos 30 d├¡as */}
             {sectionVisibility.cumples && (
             <section
               className={`card-glass transition-all duration-200 ${
@@ -606,17 +604,17 @@ export default function Home() {
                 className="mb-2 flex w-full items-center justify-between text-left"
               >
                 <h2 className="text-xl font-semibold text-green-400">
-                  Cumpleaños (30 días)
+                  Cumplea├▒os (30 d├¡as)
                 </h2>
                 <span
                   className={`transform text-slate-300 transition-transform ${
                     openSections.cumples ? "rotate-180" : ""
                   }`}
                 >
-                  ▼
+                  Γû╝
                 </span>
               </button>
-              {/* Siempre mostrar los cumpleaños de hoy, incluso con la sección cerrada */}
+              {/* Siempre mostrar los cumplea├▒os de hoy, incluso con la secci├│n cerrada */}
               {data.cumpleanosProximos.length > 0 && (
                 <ul className="mb-2 space-y-2">
                   {data.cumpleanosProximos.map((item, i) => {
@@ -641,7 +639,7 @@ export default function Home() {
               )}
               {openSections.cumples &&
                 (data.cumpleanosProximos.length === 0 ? (
-                  <p className="text-slate-400">No hay cumpleaños en los próximos 30 días.</p>
+                  <p className="text-slate-400">No hay cumplea├▒os en los pr├│ximos 30 d├¡as.</p>
                 ) : (
                   <ul className="space-y-3">
                     {data.cumpleanosProximos.map((item, i) => {
@@ -689,14 +687,14 @@ export default function Home() {
                     openSections.recursos ? "rotate-180" : ""
                   }`}
                 >
-                  ▼
+                  Γû╝
                 </span>
               </button>
               {openSections.recursos &&
                 (data.recursos && data.recursos.length > 0 ? (
                   <ul className="space-y-4">
                     {data.recursos.map((row, i) => {
-                      const titulo = getVal(row, "Título");
+                      const titulo = getVal(row, "T├¡tulo");
                       const link = getVal(row, "Link");
                       const imagen = getVal(row, "Imagen");
                       if (!titulo) return null;
@@ -738,7 +736,7 @@ export default function Home() {
         )}
 
         <footer className="mt-12 text-center text-sm text-slate-500">
-          Datos desde Google Sheets · Arboleda
+          Datos desde Google Sheets ┬╖ Arboleda
         </footer>
       </div>
     </main>
