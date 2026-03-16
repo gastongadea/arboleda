@@ -7,7 +7,7 @@ const CONFIG_PASSWORD = "4rb0sg";
 
 const SECTION_IDS = ["misas", "retiros", "ces", "crt", "cumples", "recursos"] as const;
 const SECTION_LABELS: Record<(typeof SECTION_IDS)[number], string> = {
-  misas: "Misas",
+  misas: "Misas en el campus",
   retiros: "Retiros mensuales",
   ces: "Círculos de estudio",
   crt: "Actividades del año",
