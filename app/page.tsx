@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
@@ -9,9 +9,9 @@ const SECTION_IDS = ["misas", "retiros", "ces", "crt", "cumples", "recursos"] as
 const SECTION_LABELS: Record<(typeof SECTION_IDS)[number], string> = {
   misas: "Misas en el campus",
   retiros: "Retiros mensuales",
-  ces: "C├¡rculos de estudio",
-  crt: "Actividades del a├▒o",
-  cumples: "Cumplea├▒os",
+  ces: "Círculos de estudio",
+  crt: "Actividades del año",
+  cumples: "Cumpleaños",
   recursos: "Recursos",
 };
 
@@ -74,7 +74,7 @@ function formatDate(s: string): string {
 }
 
 function getVal(obj: Record<string, string>, ...keys: string[]): string {
-  const norm = (k: string) => k?.toLowerCase().replace(/\s+/g, "_").replace(/├│/g, "o") ?? "";
+  const norm = (k: string) => k?.toLowerCase().replace(/\s+/g, "_").replace(/ó/g, "o") ?? "";
   for (const k of keys) {
     const v = obj[norm(k)] ?? obj[k ?? ""];
     if (v) return v;
@@ -124,7 +124,7 @@ function parseDateStr(s: string): { day: number; month: number; monthName: strin
 function formatDateRange(empieza: string, termina: string): string {
   const ini = parseDateStr(empieza);
   const fin = parseDateStr(termina);
-  if (!ini) return termina ? `Fechas: ${termina}` : "ΓÇö";
+  if (!ini) return termina ? `Fechas: ${termina}` : "—";
   if (!fin) return `Fechas: ${ini.day} de ${ini.monthName}`;
   if (ini.month === fin.month)
     return `Fechas: ${ini.day} al ${fin.day} de ${ini.monthName}`;
@@ -206,7 +206,7 @@ export default function Home() {
 
   return (
     <main className="relative min-h-screen">
-      {/* Bot├│n Configuraci├│n */}
+      {/* Botón Configuración */}
       <button
         type="button"
         onClick={() => {
@@ -216,8 +216,8 @@ export default function Home() {
           setConfigPassword("");
         }}
         className="fixed right-4 top-4 z-20 rounded-full bg-white/10 p-2.5 text-slate-300 transition hover:bg-white/20 hover:text-white"
-        title="Configuraci├│n"
-        aria-label="Configuraci├│n"
+        title="Configuración"
+        aria-label="Configuración"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="3" />
@@ -225,13 +225,13 @@ export default function Home() {
         </svg>
       </button>
 
-      {/* Modal Configuraci├│n */}
+      {/* Modal Configuración */}
       {configOpen && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 p-4" onClick={() => setConfigOpen(false)}>
           <div className="card-glass w-full max-w-sm rounded-xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">Configuraci├│n</h3>
-              <button type="button" onClick={() => setConfigOpen(false)} className="text-slate-400 hover:text-white">Γ£ò</button>
+              <h3 className="text-lg font-semibold text-white">Configuración</h3>
+              <button type="button" onClick={() => setConfigOpen(false)} className="text-slate-400 hover:text-white">✕</button>
             </div>
             {!configUnlocked ? (
               <form onSubmit={handleConfigSubmit}>
@@ -252,7 +252,7 @@ export default function Home() {
             ) : (
               <div className="space-y-4">
                 <p className="text-slate-300">
-                  <span className="text-slate-400">Ingresos a la p├ígina:</span>{" "}
+                  <span className="text-slate-400">Ingresos a la página:</span>{" "}
                   <span className="text-xl font-semibold text-white">{data?.visitCount ?? 0}</span>
                 </p>
                 <div>
@@ -293,7 +293,7 @@ export default function Home() {
                   Actualizar datos (refresh)
                 </button>
                 <p className="text-xs text-slate-500">
-                  Los datos se recargan desde la planilla cada vez que entras o usas este bot├│n.
+                  Los datos se recargan desde la planilla cada vez que entras o usas este botón.
                 </p>
               </div>
             )}
@@ -337,7 +337,7 @@ export default function Home() {
           <div className="card-glass mb-6 rounded-xl p-6 text-center text-red-300">
             <p>{error}</p>
             <p className="mt-2 text-sm text-slate-400">
-              Revisa GOOGLE_SERVICE_ACCOUNT_JSON y que la planilla est├⌐ compartida con el email de la cuenta de servicio.
+              Revisa GOOGLE_SERVICE_ACCOUNT_JSON y que la planilla esté compartida con el email de la cuenta de servicio.
             </p>
           </div>
         )}
@@ -364,7 +364,7 @@ export default function Home() {
                       openSections.misas ? "rotate-180" : ""
                     }`}
                   >
-                    Γû╝
+                    ▼
                   </span>
                 </button>
                 {openSections.misas && (
@@ -382,7 +382,7 @@ export default function Home() {
                                   {m.lugar && <span className="font-medium text-white">{m.lugar}</span>}
                                   {m.horarios.length > 0 && (
                                     <span className="text-slate-300">
-                                      {m.lugar ? " ΓÇö " : ""}
+                                      {m.lugar ? " — " : ""}
                                       {m.horarios.join(", ")}
                                     </span>
                                   )}
@@ -402,7 +402,7 @@ export default function Home() {
                         rel="noopener noreferrer"
                         className="text-green-300 hover:text-green-200"
                       >
-                        Ir a la web de Capellan├¡a Γåù
+                        Ir a la web de Capellanía ↗
                       </a>
                     </p>
                   </>
@@ -410,7 +410,7 @@ export default function Home() {
               </section>
             )}
 
-            {/* Retiros mensuales (del mes actual o del pr├│ximo) */}
+            {/* Retiros mensuales (del mes actual o del próximo) */}
             {sectionVisibility.retiros && (
             <section
               className={`card-glass transition-all duration-200 ${
@@ -430,7 +430,7 @@ export default function Home() {
                     openSections.retiros ? "rotate-180" : ""
                   }`}
                 >
-                  Γû╝
+                  ▼
                 </span>
               </button>
               {openSections.retiros &&
@@ -445,7 +445,7 @@ export default function Home() {
                           {item.lugar ? (
                             <>
                               <span className="text-slate-300">{item.lugar}</span>
-                              {" ┬╖ "}
+                              {" · "}
                             </>
                           ) : null}
                           {formatDate(item.fecha)}
@@ -454,12 +454,12 @@ export default function Home() {
                     </ul>
                   </>
                 ) : (
-                  <p className="text-slate-400">No hay fechas cargadas para los pr├│ximos retiros.</p>
+                  <p className="text-slate-400">No hay fechas cargadas para los próximos retiros.</p>
                 ))}
             </section>
             )}
 
-            {/* C├¡rculos de estudio (semanal) */}
+            {/* Círculos de estudio (semanal) */}
             {sectionVisibility.ces && (
             <section
               className={`card-glass transition-all duration-200 ${
@@ -472,19 +472,19 @@ export default function Home() {
                 className="mb-2 flex w-full items-center justify-between text-left"
               >
                 <h2 className="text-xl font-semibold text-green-400">
-                  C├¡rculos de estudio
+                  Círculos de estudio
                 </h2>
                 <span
                   className={`transform text-slate-300 transition-transform ${
                     openSections.ces ? "rotate-180" : ""
                   }`}
                 >
-                  Γû╝
+                  ▼
                 </span>
               </button>
               {openSections.ces &&
                 (data.ces.length === 0 ? (
-                  <p className="text-slate-400">No hay c├¡rculos cargados.</p>
+                  <p className="text-slate-400">No hay círculos cargados.</p>
                 ) : (
                   <ul className="space-y-4">
                     {data.ces.map((row, i) => (
@@ -493,16 +493,16 @@ export default function Home() {
                         className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-white/10 pb-3 last:border-0 last:pb-0"
                       >
                         <span className="font-medium text-white">
-                          {getVal(row, "lugar", "Lugar") || "ΓÇö"}
+                          {getVal(row, "lugar", "Lugar") || "—"}
                         </span>
                         <span className="text-slate-300">
-                          {getVal(row, "d├¡a", "dia", "D├¡a") || "ΓÇö"}
+                          {getVal(row, "día", "dia", "Día") || "—"}
                         </span>
                         <span className="text-slate-300">
-                          {getVal(row, "hora", "Hora") || "ΓÇö"}
+                          {getVal(row, "hora", "Hora") || "—"}
                         </span>
                         <span className="text-slate-400">
-                          Encargado: {getVal(row, "encargado", "Encargado") || "ΓÇö"}
+                          Encargado: {getVal(row, "encargado", "Encargado") || "—"}
                         </span>
                       </li>
                     ))}
@@ -511,7 +511,7 @@ export default function Home() {
             </section>
             )}
 
-            {/* Actividades del a├▒o (CRT-CV) */}
+            {/* Actividades del año (CRT-CV) */}
             {sectionVisibility.crt && (
             <section
               className={`card-glass transition-all duration-200 ${
@@ -524,14 +524,14 @@ export default function Home() {
                 className="mb-2 flex w-full items-center justify-between text-left"
               >
                 <h2 className="text-xl font-semibold text-green-400">
-                  Actividades del a├▒o
+                  Actividades del año
                 </h2>
                 <span
                   className={`transform text-slate-300 transition-transform ${
                     openSections.crt ? "rotate-180" : ""
                   }`}
                 >
-                  Γû╝
+                  ▼
                 </span>
               </button>
               {openSections.crt &&
@@ -542,7 +542,7 @@ export default function Home() {
                     {data.crtCv.map((row, i) => {
                       const empieza = getVal(row, "empieza", "fecha_de_inicio", "fecha_inicio");
                       const termina = getVal(row, "termina", "fecha_de_fin", "fecha_fin");
-                      const linkInscripcion = getVal(row, "inscripci├│n", "inscripcion", "link_inscripcion", "link");
+                      const linkInscripcion = getVal(row, "inscripción", "inscripcion", "link_inscripcion", "link");
                       return (
                         <li
                           key={i}
@@ -552,16 +552,16 @@ export default function Home() {
                             {getVal(row, "actividad", "tipo_de_actividad", "tipo", "Tipo de actividad") || "Actividad"}
                           </p>
                           <p className="mt-1 text-slate-300">
-                            <span className="text-slate-400">Lugar:</span> {getVal(row, "lugar", "Lugar") || "ΓÇö"}
+                            <span className="text-slate-400">Lugar:</span> {getVal(row, "lugar", "Lugar") || "—"}
                           </p>
                           <p className="mt-1 text-slate-300">
                             {formatDateRange(empieza, termina)}
                           </p>
                           <p className="mt-1 text-slate-300">
-                            <span className="text-slate-400">Sacerdote:</span> {getVal(row, "sacerdote", "predicador", "Predicador") || "ΓÇö"}
+                            <span className="text-slate-400">Sacerdote:</span> {getVal(row, "sacerdote", "predicador", "Predicador") || "—"}
                           </p>
                           <p className="mt-1 text-slate-300">
-                            <span className="text-slate-400">Director:</span> {getVal(row, "director", "Director") || "ΓÇö"}
+                            <span className="text-slate-400">Director:</span> {getVal(row, "director", "Director") || "—"}
                           </p>
                           {linkInscripcion ? (
                             <a
@@ -570,7 +570,7 @@ export default function Home() {
                               rel="noopener noreferrer"
                               className="link-inscripcion mt-4 inline-flex"
                             >
-                              Inscripci├│n
+                              Inscripción
                             </a>
                           ) : null}
                         </li>
@@ -591,7 +591,7 @@ export default function Home() {
             </section>
             )}
 
-            {/* Cumplea├▒os pr├│ximos 30 d├¡as */}
+            {/* Cumpleaños próximos 30 días */}
             {sectionVisibility.cumples && (
             <section
               className={`card-glass transition-all duration-200 ${
@@ -604,17 +604,17 @@ export default function Home() {
                 className="mb-2 flex w-full items-center justify-between text-left"
               >
                 <h2 className="text-xl font-semibold text-green-400">
-                  Cumplea├▒os (30 d├¡as)
+                  Cumpleaños (30 días)
                 </h2>
                 <span
                   className={`transform text-slate-300 transition-transform ${
                     openSections.cumples ? "rotate-180" : ""
                   }`}
                 >
-                  Γû╝
+                  ▼
                 </span>
               </button>
-              {/* Siempre mostrar los cumplea├▒os de hoy, incluso con la secci├│n cerrada */}
+              {/* Siempre mostrar los cumpleaños de hoy, incluso con la sección cerrada */}
               {data.cumpleanosProximos.length > 0 && (
                 <ul className="mb-2 space-y-2">
                   {data.cumpleanosProximos.map((item, i) => {
@@ -639,7 +639,7 @@ export default function Home() {
               )}
               {openSections.cumples &&
                 (data.cumpleanosProximos.length === 0 ? (
-                  <p className="text-slate-400">No hay cumplea├▒os en los pr├│ximos 30 d├¡as.</p>
+                  <p className="text-slate-400">No hay cumpleaños en los próximos 30 días.</p>
                 ) : (
                   <ul className="space-y-3">
                     {data.cumpleanosProximos.map((item, i) => {
@@ -687,14 +687,14 @@ export default function Home() {
                     openSections.recursos ? "rotate-180" : ""
                   }`}
                 >
-                  Γû╝
+                  ▼
                 </span>
               </button>
               {openSections.recursos &&
                 (data.recursos && data.recursos.length > 0 ? (
                   <ul className="space-y-4">
                     {data.recursos.map((row, i) => {
-                      const titulo = getVal(row, "T├¡tulo");
+                      const titulo = getVal(row, "Título");
                       const link = getVal(row, "Link");
                       const imagen = getVal(row, "Imagen");
                       if (!titulo) return null;
@@ -736,7 +736,7 @@ export default function Home() {
         )}
 
         <footer className="mt-12 text-center text-sm text-slate-500">
-          Datos desde Google Sheets ┬╖ Arboleda
+          Datos desde Google Sheets · Arboleda
         </footer>
       </div>
     </main>
