@@ -1,0 +1,398 @@
+﻿import { google } from "googleapis";
+import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+
+const SPREADSHEET_ID = process.env.SHEET_ID || "1KD20URgHePrH-4Hb6Z_eSxMhqF6xpMlX4uS8oWEvofc";
+
+const TZ_ARG = "America/Argentina/Buenos_Aires"; // GMT-3
+
+/** Fecha de hoy y hoy+30 en GMT-3 para evitar que a las 21h ya sea "ma├▒ana" en UTC. */
+function getTodayAndEndGMT3(): { today: string; end: string; year: number } {
+  const now = new Date();
+  const today = now.toLocaleDateString("sv-SE", { timeZone: TZ_ARG });
+  const [y, m, d] = today.split("-").map(Number);
+  const endDate = new Date(Date.UTC(y, m - 1, d + 30, 12, 0, 0));
+  const end = endDate.toISOString().slice(0, 10);
+  return { today, end, year: y };
+}
+
+function getAuth(readOnly = true) {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!raw) throw new Error("Falta GOOGLE_SERVICE_ACCOUNT_JSON");
+  let credentials: object;
+  try {
+    credentials = JSON.parse(raw);
+  } catch {
+    throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON no es un JSON v├ílido");
+  }
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: [
+      readOnly
+        ? "https://www.googleapis.com/auth/spreadsheets.readonly"
+        : "https://www.googleapis.com/auth/spreadsheets",
+    ],
+  });
+  return auth;
+}
+
+async function getSheetValues(range: string): Promise<string[][]> {
+  const auth = getAuth(true);
+  const sheets = google.sheets({ version: "v4", auth });
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range,
+  });
+  const rows = (res.data.values ?? []) as unknown[][];
+  return rows.map((row) => (row ?? []).map((c) => String(c != null && c !== "" ? c : "").trim()));
+}
+
+/** Lee e incrementa el contador de visitas en la hoja "stats", celda A1. La cuenta de servicio debe tener permisos de edici├│n. */
+async function getAndIncrementVisitCount(): Promise<number> {
+  try {
+    const auth = getAuth(false);
+    const sheets = google.sheets({ version: "v4", auth });
+    const range = "stats!A1";
+    const getRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range,
+    });
+    const current = Math.max(0, parseInt(String((getRes.data.values ?? [])[0]?.[0] ?? "0"), 10) || 0);
+    const next = current + 1;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [[next]] },
+    });
+    return next;
+  } catch {
+    return 0;
+  }
+}
+
+export type MisasPorDia = {
+  fecha: string;
+  diaLabel?: string;
+  misas: { lugar: string; horarios: string[] }[];
+};
+
+/** Lee la secci├│n de misas pr├│ximas desde la web de la capellan├¡a (masses-container ΓåÆ mass-column ΓåÆ mass-card). */
+async function getMisasCampus(): Promise<MisasPorDia[]> {
+  try {
+    const res = await fetch("https://www.austral.edu.ar/capellania/", { cache: "no-store" });
+    if (!res.ok) return [];
+    const html = await res.text();
+    const containerMatch = html.match(
+      /<div[^>]+class="[^"]*masses-container[^"]*"[^>]*>([\s\S]*)/i
+    );
+    let containerInner = containerInnerFromMatch(containerMatch?.[1] ?? "");
+    if (!containerInner) {
+      const alt = html.match(/class="[^"]*masses-container[^"]*"[\s\S]*?>([\s\S]*)/i);
+      containerInner = containerInnerFromMatch(alt?.[1] ?? "");
+    }
+    if (!containerInner) return [];
+
+    const colTagRegex = /<div[^>]+class="[^"]*mass-column[^"]*"[^>]*>/gi;
+    const columnStarts: { index: number; length: number }[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = colTagRegex.exec(containerInner)) !== null) {
+      columnStarts.push({ index: m.index + m[0].length, length: m[0].length });
+    }
+    const out: MisasPorDia[] = [];
+    for (let i = 0; i < columnStarts.length && out.length < 7; i++) {
+      const start = columnStarts[i].index;
+      const end = columnStarts[i + 1]?.index ?? containerInner.length;
+      const columnInner = containerInner.slice(start, end);
+      const diaLabel = columnInner.match(
+        /class="[^"]*mass-card-title[^"]*"[^>]*>([^<]+)<\/h3>/i
+      )?.[1]?.trim();
+      const fecha = columnInner.match(
+        /class="[^"]*mass-card-header[^"]*"[\s\S]*?>(?:[\s\S]*?)<span[^>]*>([^<]+)<\/span>/i
+      )?.[1]?.trim() ?? columnInner.match(/class="[^"]*mass-card-header[^"]*"[\s\S]*?>[\s\S]*?([\d\/]+)/i)?.[1]?.trim() ?? "";
+      const misas: { lugar: string; horarios: string[] }[] = [];
+      const misasBoxRegex = /<div[^>]+class="[^"]*misas-box[^"]*"[^>]*>/gi;
+      let boxMatch: RegExpExecArray | null;
+      while ((boxMatch = misasBoxRegex.exec(columnInner)) !== null) {
+        const start = boxMatch.index + (boxMatch[0]?.length ?? 0);
+        const boxInner = extractDivContent(columnInner, start);
+        const lugar =
+          boxInner.match(/class="[^"]*title-ubicacion[^"]*"[^>]*>([^<]+)<\/h5>/i)?.[1]?.trim() ??
+          boxInner.match(/<h5[^>]*>([^<]+)<\/h5>/i)?.[1]?.trim() ?? "";
+        const horarios: string[] = [];
+        const liRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+        let liMatch: RegExpExecArray | null;
+        while ((liMatch = liRegex.exec(boxInner)) !== null) {
+          const raw = (liMatch[1] ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+          if (raw) horarios.push(raw);
+        }
+        if (lugar || horarios.length > 0) misas.push({ lugar, horarios });
+      }
+      const fechaStr = [diaLabel, fecha].filter(Boolean).join(" ");
+      if (fechaStr || misas.length > 0) out.push({ fecha: fechaStr || fecha, diaLabel, misas });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+function containerInnerFromMatch(inner: string): string {
+  if (!inner) return "";
+  let depth = 1;
+  let i = 0;
+  const len = inner.length;
+  while (i < len) {
+    const open = inner.indexOf("<div", i);
+    const close = inner.indexOf("</div>", i);
+    if (close === -1) break;
+    if (open !== -1 && open < close) {
+      depth++;
+      i = open + 4;
+      continue;
+    }
+    depth--;
+    i = close + 6;
+    if (depth === 0) return inner.slice(0, close);
+  }
+  return inner;
+}
+
+function extractDivContent(html: string, startIndex: number): string {
+  let depth = 1;
+  let i = startIndex;
+  const len = html.length;
+  while (i < len) {
+    const open = html.indexOf("<div", i);
+    const close = html.indexOf("</div>", i);
+    if (close === -1) return html.slice(startIndex);
+    if (open !== -1 && open < close) {
+      depth++;
+      i = open + 4;
+      continue;
+    }
+    depth--;
+    i = close + 6;
+    if (depth === 0) return html.slice(startIndex, close);
+  }
+  return html.slice(startIndex);
+}
+
+function rowsToObjects(rows: string[][]): Record<string, string>[] {
+  if (rows.length < 2) return [];
+  const headers = rows[0].map((h) => h.toLowerCase().replace(/\s+/g, "_"));
+  const out: Record<string, string>[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const obj: Record<string, string> = {};
+    headers.forEach((h, j) => {
+      obj[h] = (row[j] ?? "").trim();
+    });
+    if (Object.values(obj).some((v) => v)) out.push(obj);
+  }
+  return out;
+}
+
+function parseMonth(label: string): number {
+  const m: Record<string, number> = {
+    enero: 0, ene: 0, february: 1, febrero: 1, feb: 1, marzo: 2, mar: 2, abril: 3, abr: 3,
+    mayo: 4, junio: 5, jun: 5, julio: 6, jul: 6, agosto: 7, ago: 7, septiembre: 8, sep: 8, sept: 8,
+    octubre: 9, oct: 9, noviembre: 10, nov: 10, diciembre: 11, dic: 11,
+  };
+  const key = label.toLowerCase().trim();
+  return m[key] ?? m[key.slice(0, 3)] ?? -1;
+}
+
+function parseDate(s: string | number): Date | null {
+  if (s === "" || s == null) return null;
+  const str = String(s).trim();
+  if (!str) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return new Date(str + "T12:00:00");
+  const num = Number(str);
+  if (!isNaN(num) && num > 0 && num < 100000) {
+    const excelEpoch = new Date(1899, 11, 30);
+    const d = new Date(excelEpoch.getTime() + num * 86400 * 1000);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const parts = str.split(/[\/\-\.]/).map((p) => parseInt(p.trim(), 10));
+  if (parts.length >= 2) {
+    let d: number, m: number, y: number;
+    if (parts.length === 2) {
+      d = parts[0];
+      m = parts[1];
+      y = new Date().getFullYear();
+    } else {
+      if (parts[0] > 31) {
+        y = parts[0];
+        m = parts[1];
+        d = parts[2];
+      } else if (parts[2] > 31) {
+        d = parts[0];
+        m = parts[1];
+        y = parts[2];
+      } else {
+        d = parts[0];
+        m = parts[1];
+        y = parts[2];
+      }
+      if (y != null && y < 100) y = 2000 + y;
+    }
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      const date = new Date(y ?? new Date().getFullYear(), m - 1, d);
+      return isNaN(date.getTime()) ? null : date;
+    }
+  }
+  return null;
+}
+
+type RetiroItem = { fecha: string; lugar: string };
+
+/**
+ * Hoja "rt": A = Lugar, B a L = meses (febrero a diciembre).
+ * Filas 2 a 8 = datos; cada celda en B-L es una fecha completa (ej. "5/2/2026", "9/3/2026").
+ * Celdas vac├¡as = no hay retiro en ese mes para esa fila.
+ */
+async function getRetirosMensuales(): Promise<RetiroItem[]> {
+  const rows = await getSheetValues("rt!A:L");
+  const items: RetiroItem[] = [];
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r] ?? [];
+    const lugar = (row[0] ?? "").trim();
+    for (let c = 1; c <= 11; c++) {
+      const raw = row[c];
+      const cell = raw != null ? String(raw).trim() : "";
+      if (!cell) continue;
+      const d = parseDate(cell);
+      if (d) items.push({ fecha: d.toISOString().slice(0, 10), lugar });
+    }
+  }
+  return items.sort((a, b) => a.fecha.localeCompare(b.fecha));
+}
+
+/** Retiros del mes actual (pr├│ximos) o del pr├│ximo mes si ya pasaron todos los del actual. */
+function getRetirosProximosDelMes(retiros: RetiroItem[], today: string): RetiroItem[] {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1;
+  const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
+
+  const inMonth = (fecha: string, y: number, m: number) => {
+    const [yy, mm] = fecha.split("-").map(Number);
+    return yy === y && mm === m + 1;
+  };
+
+  const retirosEsteMes = retiros.filter((x) => inMonth(x.fecha, currentYear, currentMonth));
+  const retirosProximoMes = retiros.filter((x) => inMonth(x.fecha, nextYear, nextMonth));
+  const futurosEsteMes = retirosEsteMes.filter((x) => x.fecha >= today);
+
+  if (futurosEsteMes.length > 0) return futurosEsteMes;
+  return retirosProximoMes;
+}
+
+export async function GET() {
+  if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    return NextResponse.json(
+      { error: "Configura GOOGLE_SERVICE_ACCOUNT_JSON (cuenta de servicio de Google)." },
+      { status: 503 }
+    );
+  }
+
+  try {
+    const [retiros, crtCvRows, cesRows, cumpleanosRows, recursosRows] = await Promise.all([
+      getRetirosMensuales(),
+      getSheetValues("crt-cv!A:Z"),
+      getSheetValues("ces!A:Z"),
+      getSheetValues("Cumples!A:B"),
+      getSheetValues("Recursos!A:Z").catch(() => getSheetValues("recursos!A:Z").catch(() => [[] as string[]])),
+    ]);
+
+    let crtCv = rowsToObjects(crtCvRows);
+    const ces = rowsToObjects(cesRows);
+    const recursosRaw = (recursosRows ?? []) as string[][];
+    const recursos = recursosRaw.length >= 2 ? rowsToObjects(recursosRaw) : [];
+    let cumpleanos = rowsToObjects(cumpleanosRows);
+    if (cumpleanos.length === 0 && cumpleanosRows.length >= 1) {
+      const header = (cumpleanosRows[0] ?? []).map((h) => String(h).toLowerCase().replace(/\s+/g, "_"));
+      const nameIdx = header.findIndex((h) => /full_name|nombre|name|nom/.test(h)) >= 0
+        ? header.findIndex((h) => /full_name|nombre|name|nom/.test(h))
+        : 0;
+      const dateIdx = header.findIndex((h) => /nacimiento|fecha|birth/.test(h)) >= 0
+        ? header.findIndex((h) => /nacimiento|fecha|birth/.test(h))
+        : 1;
+      cumpleanos = cumpleanosRows.slice(1).map((row) => ({
+        nombre: (row[nameIdx] ?? "").trim() || (row[0] ?? "").trim(),
+        fecha: (row[dateIdx] ?? "").trim() || (row[1] ?? "").trim(),
+      }));
+      cumpleanos = cumpleanos.filter((r) => r.nombre || r.fecha);
+    }
+
+    const { today, end, year: yearGMT3 } = getTodayAndEndGMT3();
+
+    crtCv = crtCv.filter((row) => {
+      const fin = (row.termina ?? row.fecha_de_fin ?? row.fecha_fin ?? "").trim();
+      if (!fin) return true;
+      const d = parseDate(fin);
+      if (!d) return true;
+      return d.toISOString().slice(0, 10) >= today;
+    });
+
+    const retirosProximos = getRetirosProximosDelMes(retiros, today);
+
+    const getNombre = (row: Record<string, string>) =>
+      row.full_name ?? row.nombre ?? row.name ?? row.nom ?? "";
+    const getFechaNac = (row: Record<string, string>) =>
+      row.nacimiento ?? row.fecha ?? row.fecha_de_nacimiento ?? row.fecha_nacimiento ?? "";
+
+    const cumpleanosProximos = cumpleanos
+      .map((row) => {
+        const nombre = getNombre(row).trim();
+        const fechaRaw = getFechaNac(row);
+        const d = parseDate(fechaRaw);
+        if (!d || !nombre) return null;
+        const birthInArg = d.toLocaleDateString("sv-SE", { timeZone: TZ_ARG });
+        const [, m, day] = birthInArg.split("-").map(Number);
+        const thisYear = `${yearGMT3}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        if (thisYear >= today && thisYear <= end) return { nombre, fecha: thisYear };
+        return null;
+      })
+      .filter((x): x is { nombre: string; fecha: string } => x != null)
+      .sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+    const mesRetirosLabel =
+      retirosProximos.length > 0
+        ? (() => {
+            const [y, m] = retirosProximos[0].fecha.split("-").map(Number);
+            const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+            return `${monthNames[m - 1]} ${y}`;
+          })()
+        : null;
+
+    const visitCount = await getAndIncrementVisitCount();
+    const misasCampus = await getMisasCampus();
+
+    const otrasFechasLink = String((crtCvRows[0] ?? [])[7] ?? "").trim();
+
+    return NextResponse.json({
+      retirosProximos,
+      mesRetirosLabel,
+      ces,
+      crtCv,
+      cumpleanosProximos,
+      visitCount,
+      misasCampus,
+      otrasFechasLink: otrasFechasLink || undefined,
+      recursos,
+    });
+  } catch (e) {
+    console.error(e);
+    return NextResponse.json(
+      {
+        error:
+          "No se pudo leer la planilla. Revisa que la cuenta de servicio tenga acceso (comparte la hoja con su email).",
+      },
+      { status: 502 }
+    );
+  }
+}
