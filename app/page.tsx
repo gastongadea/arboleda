@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
@@ -7,7 +7,7 @@ const CONFIG_PASSWORD = "4rb0sg";
 
 const SECTION_IDS = ["misas", "retiros", "ces", "crt", "cumples", "recursos"] as const;
 const SECTION_LABELS: Record<(typeof SECTION_IDS)[number], string> = {
-  misas: "Misas en el campus",
+  misas: "Misas",
   retiros: "Retiros mensuales",
   ces: "Círculos de estudio",
   crt: "Actividades del año",
