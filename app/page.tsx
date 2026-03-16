@@ -56,9 +56,11 @@ type SheetData = {
   recursos?: Record<string, string>[];
 };
 
-/** Fecha de hoy en GMT-3 (Argentina) para que "hoy" no cambie a las 21h por UTC. */
+/** Fecha de hoy en GMT-3 (Argentina). Mismo criterio que en la API para que coincida en Vercel y local. */
 function getTodayGMT3(): string {
-  return new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
+  const utc = new Date();
+  const arg = new Date(utc.getTime() - 3 * 60 * 60 * 1000);
+  return arg.toISOString().slice(0, 10);
 }
 
 function formatDate(s: string): string {

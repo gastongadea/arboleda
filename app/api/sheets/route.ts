@@ -5,14 +5,17 @@ export const dynamic = "force-dynamic";
 
 const SPREADSHEET_ID = process.env.SHEET_ID || "1KD20URgHePrH-4Hb6Z_eSxMhqF6xpMlX4uS8oWEvofc";
 
-const TZ_ARG = "America/Argentina/Buenos_Aires"; // GMT-3
+const GMT3_OFFSET_MS = 3 * 60 * 60 * 1000;
 
-/** Fecha de hoy y hoy+30 en GMT-3 para evitar que a las 21h ya sea "mañana" en UTC. */
+/** Fecha de hoy y hoy+30 en GMT-3 (Argentina). Cálculo manual para que funcione igual en Vercel y local. */
 function getTodayAndEndGMT3(): { today: string; end: string; year: number } {
-  const now = new Date();
-  const today = now.toLocaleDateString("sv-SE", { timeZone: TZ_ARG });
-  const [y, m, d] = today.split("-").map(Number);
-  const endDate = new Date(Date.UTC(y, m - 1, d + 30, 12, 0, 0));
+  const utc = new Date();
+  const arg = new Date(utc.getTime() - GMT3_OFFSET_MS);
+  const today = arg.toISOString().slice(0, 10);
+  const y = arg.getUTCFullYear();
+  const m = arg.getUTCMonth();
+  const d = arg.getUTCDate();
+  const endDate = new Date(Date.UTC(y, m, d + 30, 12, 0, 0));
   const end = endDate.toISOString().slice(0, 10);
   return { today, end, year: y };
 }
@@ -351,8 +354,9 @@ export async function GET() {
         const fechaRaw = getFechaNac(row);
         const d = parseDate(fechaRaw);
         if (!d || !nombre) return null;
-        const birthInArg = d.toLocaleDateString("sv-SE", { timeZone: TZ_ARG });
-        const [, m, day] = birthInArg.split("-").map(Number);
+        const birthInArg = new Date(d.getTime() - GMT3_OFFSET_MS);
+        const m = birthInArg.getUTCMonth() + 1;
+        const day = birthInArg.getUTCDate();
         const thisYear = `${yearGMT3}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
         if (thisYear >= today && thisYear <= end) return { nombre, fecha: thisYear };
         return null;
