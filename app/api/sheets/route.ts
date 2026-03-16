@@ -350,11 +350,28 @@ export async function GET() {
       .map((row) => {
         const nombre = getNombre(row).trim();
         const fechaRaw = getFechaNac(row);
-        const d = parseDate(fechaRaw);
-        if (!d || !nombre) return null;
-        const birthInArg = d.toLocaleDateString("sv-SE", { timeZone: TZ_ARG });
-        const [, m, day] = birthInArg.split("-").map(Number);
-        const thisYear = `${yearGMT3}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        if (!nombre || !fechaRaw) return null;
+
+        let month: number | null = null;
+        let day: number | null = null;
+
+        const num = Number(fechaRaw);
+        if (!isNaN(num) && num > 0 && num < 100000) {
+          // Fecha como serial de Google Sheets / Excel (independiente de zona horaria, usamos UTC)
+          const excelEpochUTC = Date.UTC(1899, 11, 30);
+          const ms = excelEpochUTC + (num - 1) * 86400 * 1000;
+          const dSerial = new Date(ms);
+          month = dSerial.getUTCMonth() + 1;
+          day = dSerial.getUTCDate();
+        } else {
+          const d = parseDate(fechaRaw);
+          if (!d) return null;
+          month = d.getUTCMonth() + 1;
+          day = d.getUTCDate();
+        }
+
+        if (!month || !day) return null;
+        const thisYear = `${yearGMT3}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
         if (thisYear >= today && thisYear <= end) return { nombre, fecha: thisYear };
         return null;
       })
