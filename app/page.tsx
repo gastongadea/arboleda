@@ -359,7 +359,7 @@ export default function Home() {
                   className="mb-2 flex w-full items-center justify-between text-left"
                 >
                   <h2 className="text-xl font-semibold text-green-400">
-                    Misas
+                    Misas en el campus
                   </h2>
                   <span
                     className={`transform text-slate-300 transition-transform ${
