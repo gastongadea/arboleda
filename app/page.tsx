@@ -7,7 +7,7 @@ const CONFIG_PASSWORD = "4rb0sg";
 
 const SECTION_IDS = ["misas", "retiros", "ces", "crt", "cumples", "recursos"] as const;
 const SECTION_LABELS: Record<(typeof SECTION_IDS)[number], string> = {
-  misas: "Misas",
+  misas: "Misas en el campus",
   retiros: "Retiros mensuales",
   ces: "Círculos de estudio",
   crt: "Actividades del año",
@@ -38,6 +38,12 @@ function loadSectionVisibility(): Record<(typeof SECTION_IDS)[number], boolean> 
   return DEFAULT_VISIBILITY;
 }
 
+type MisasPorDia = {
+  fecha: string;
+  diaLabel?: string;
+  misas: { lugar: string; horarios: string[] }[];
+};
+
 type SheetData = {
   retirosProximos: { fecha: string; lugar: string }[];
   mesRetirosLabel: string | null;
@@ -46,9 +52,14 @@ type SheetData = {
   cumpleanosProximos: { nombre: string; fecha: string }[];
   visitCount?: number;
   otrasFechasLink?: string;
-  misasCampus?: string[];
+  misasCampus?: MisasPorDia[];
   recursos?: Record<string, string>[];
 };
+
+/** Fecha de hoy en GMT-3 (Argentina) para que "hoy" no cambie a las 21h por UTC. */
+function getTodayGMT3(): string {
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
+}
 
 function formatDate(s: string): string {
   if (!s) return "";
@@ -333,26 +344,69 @@ export default function Home() {
 
         {!loading && data && (
           <div className="space-y-8">
-            {/* Enlace a Misas en el Campus */}
+            {/* Misas en el Campus (desde austral.edu.ar/capellania) */}
             {sectionVisibility.misas && (
               <section
                 className={`card-glass transition-all duration-200 ${
                   !openSections.misas ? "py-2 sm:py-2 px-6 sm:px-8" : "p-6 sm:p-8 sm:py-4"
                 }`}
               >
-                <a 
-                  href="https://www.austral.edu.ar/capellania/" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-between group"
+                <button
+                  type="button"
+                  onClick={() => toggleSection("misas")}
+                  className="mb-2 flex w-full items-center justify-between text-left"
                 >
-                  <h2 className="text-xl font-semibold text-green-400 group-hover:text-green-300 transition-colors">
+                  <h2 className="text-xl font-semibold text-green-400">
                     Misas
                   </h2>
-                  <span className="text-slate-300 group-hover:translate-x-1 transition-transform">
-                    Ir a la web ↗
+                  <span
+                    className={`transform text-slate-300 transition-transform ${
+                      openSections.misas ? "rotate-180" : ""
+                    }`}
+                  >
+                    ▼
                   </span>
-                </a>
+                </button>
+                {openSections.misas && (
+                  <>
+                    {(data.misasCampus ?? []).length > 0 ? (
+                      <ul className="space-y-5">
+                        {(data.misasCampus ?? []).map((dia, i) => (
+                          <li key={i} className="border-b border-white/10 pb-4 last:border-0 last:pb-0">
+                            <p className="mb-2 font-medium text-green-300/90">
+                              {dia.fecha}
+                            </p>
+                            <ul className="space-y-2">
+                              {dia.misas.map((m, j) => (
+                                <li key={j} className="text-white">
+                                  {m.lugar && <span className="font-medium text-white">{m.lugar}</span>}
+                                  {m.horarios.length > 0 && (
+                                    <span className="text-slate-300">
+                                      {m.lugar ? " — " : ""}
+                                      {m.horarios.join(", ")}
+                                    </span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-slate-400">No se pudieron cargar las misas.</p>
+                    )}
+                    <p className="mt-4">
+                      <a
+                        href="https://www.austral.edu.ar/capellania/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-green-300 hover:text-green-200"
+                      >
+                        Ir a la web de Capellanía ↗
+                      </a>
+                    </p>
+                  </>
+                )}
               </section>
             )}
 
@@ -564,7 +618,7 @@ export default function Home() {
               {data.cumpleanosProximos.length > 0 && (
                 <ul className="mb-2 space-y-2">
                   {data.cumpleanosProximos.map((item, i) => {
-                    const today = new Date().toISOString().slice(0, 10);
+                    const today = getTodayGMT3();
                     if (item.fecha !== today) return null;
                     return (
                       <li
@@ -589,7 +643,7 @@ export default function Home() {
                 ) : (
                   <ul className="space-y-3">
                     {data.cumpleanosProximos.map((item, i) => {
-                      const today = new Date().toISOString().slice(0, 10);
+                      const today = getTodayGMT3();
                       const esHoy = item.fecha === today;
                       return (
                         <li

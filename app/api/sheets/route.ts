@@ -5,6 +5,18 @@ export const dynamic = "force-dynamic";
 
 const SPREADSHEET_ID = process.env.SHEET_ID || "1KD20URgHePrH-4Hb6Z_eSxMhqF6xpMlX4uS8oWEvofc";
 
+const TZ_ARG = "America/Argentina/Buenos_Aires"; // GMT-3
+
+/** Fecha de hoy y hoy+30 en GMT-3 para evitar que a las 21h ya sea "mañana" en UTC. */
+function getTodayAndEndGMT3(): { today: string; end: string; year: number } {
+  const now = new Date();
+  const today = now.toLocaleDateString("sv-SE", { timeZone: TZ_ARG });
+  const [y, m, d] = today.split("-").map(Number);
+  const endDate = new Date(Date.UTC(y, m - 1, d + 30, 12, 0, 0));
+  const end = endDate.toISOString().slice(0, 10);
+  return { today, end, year: y };
+}
+
 function getAuth(readOnly = true) {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!raw) throw new Error("Falta GOOGLE_SERVICE_ACCOUNT_JSON");
@@ -60,81 +72,111 @@ async function getAndIncrementVisitCount(): Promise<number> {
   }
 }
 
-/** Lee la sección de misas próximas desde la web de la capellanía y devuelve hasta 7 bloques de texto (uno por día). */
-async function getMisasCampus(): Promise<string[]> {
+export type MisasPorDia = {
+  fecha: string;
+  diaLabel?: string;
+  misas: { lugar: string; horarios: string[] }[];
+};
+
+/** Lee la sección de misas próximas desde la web de la capellanía (masses-container → mass-column → mass-card). */
+async function getMisasCampus(): Promise<MisasPorDia[]> {
   try {
     const res = await fetch("https://www.austral.edu.ar/capellania/", { cache: "no-store" });
     if (!res.ok) return [];
     const html = await res.text();
     const containerMatch = html.match(
-      /<div[^>]+class="[^"]*mass(?:es)?-container[^"]*"[^>]*>([\s\S]*?)<\/div>/i
+      /<div[^>]+class="[^"]*masses-container[^"]*"[^>]*>([\s\S]*)/i
     );
-    const containerInner = containerMatch?.[1] ?? "";
+    let containerInner = containerInnerFromMatch(containerMatch?.[1] ?? "");
+    if (!containerInner) {
+      const alt = html.match(/class="[^"]*masses-container[^"]*"[\s\S]*?>([\s\S]*)/i);
+      containerInner = containerInnerFromMatch(alt?.[1] ?? "");
+    }
     if (!containerInner) return [];
 
-    const colRegex =
-      /<div[^>]+class="[^"]*mass-column[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/gi;
-    const blocks: string[] = [];
-    let colMatch: RegExpExecArray | null;
-
-    const toText = (htmlPart: string | undefined) =>
-      (htmlPart ?? "")
-        .replace(/<br\s*\/?>/gi, " ")
-        .replace(/<[^>]+>/g, " ")
-        .replace(/&nbsp;/gi, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-
-    while ((colMatch = colRegex.exec(containerInner)) !== null) {
-      const columnInner = colMatch[1] ?? "";
-
-      const dayMatch = columnInner.match(
-        /class="mass-card-title"[^>]*>([^<]+)<\/h3>/i
-      );
-      const dateMatch = columnInner.match(
-        /class="mass-card-header"[\s\S]*?<span[^>]*>([^<]+)<\/span>/i
-      );
-      const day = dayMatch?.[1]?.trim() ?? "";
-      const date = dateMatch?.[1]?.trim() ?? "";
-
-      const misasRegex =
-        /<div[^>]+class="[^"]*misas-box[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
-      let misaMatch: RegExpExecArray | null;
-      const misaParts: string[] = [];
-
-      while ((misaMatch = misasRegex.exec(columnInner)) !== null) {
-        const boxInner = misaMatch[1] ?? "";
-        const placeMatch = boxInner.match(
-          /class="title-ubicacion"[^>]*>([^<]+)<\/h5>/i
-        );
-        const place = placeMatch?.[1]?.trim() ?? "";
-
-        const liRegex =
-          /<li[^>]*>(?:<i[^>]*>[\s\S]*?<\/i>)?\s*([^<]+)<\/li>/gi;
-        let liMatch: RegExpExecArray | null;
-        const times: string[] = [];
-        while ((liMatch = liRegex.exec(boxInner)) !== null) {
-          const t = liMatch[1]?.trim();
-          if (t) times.push(t);
-        }
-
-        if (place && times.length > 0) {
-          misaParts.push(`${place} ${times.join(" ")}`);
-        } else if (place) {
-          misaParts.push(place);
-        }
-      }
-
-      const header = [day, date].filter(Boolean).join(" ");
-      const body = misaParts.join(" · ");
-      const combined = [header, body].filter(Boolean).join(" · ");
-      if (combined) blocks.push(combined);
-      if (blocks.length >= 7) break;
+    const colTagRegex = /<div[^>]+class="[^"]*mass-column[^"]*"[^>]*>/gi;
+    const columnStarts: { index: number; length: number }[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = colTagRegex.exec(containerInner)) !== null) {
+      columnStarts.push({ index: m.index + m[0].length, length: m[0].length });
     }
-    return blocks;
+    const out: MisasPorDia[] = [];
+    for (let i = 0; i < columnStarts.length && out.length < 7; i++) {
+      const start = columnStarts[i].index;
+      const end = columnStarts[i + 1]?.index ?? containerInner.length;
+      const columnInner = containerInner.slice(start, end);
+      const diaLabel = columnInner.match(
+        /class="[^"]*mass-card-title[^"]*"[^>]*>([^<]+)<\/h3>/i
+      )?.[1]?.trim();
+      const fecha = columnInner.match(
+        /class="[^"]*mass-card-header[^"]*"[\s\S]*?>(?:[\s\S]*?)<span[^>]*>([^<]+)<\/span>/i
+      )?.[1]?.trim() ?? columnInner.match(/class="[^"]*mass-card-header[^"]*"[\s\S]*?>[\s\S]*?([\d\/]+)/i)?.[1]?.trim() ?? "";
+      const misas: { lugar: string; horarios: string[] }[] = [];
+      const misasBoxRegex = /<div[^>]+class="[^"]*misas-box[^"]*"[^>]*>/gi;
+      let boxMatch: RegExpExecArray | null;
+      while ((boxMatch = misasBoxRegex.exec(columnInner)) !== null) {
+        const start = boxMatch.index + (boxMatch[0]?.length ?? 0);
+        const boxInner = extractDivContent(columnInner, start);
+        const lugar =
+          boxInner.match(/class="[^"]*title-ubicacion[^"]*"[^>]*>([^<]+)<\/h5>/i)?.[1]?.trim() ??
+          boxInner.match(/<h5[^>]*>([^<]+)<\/h5>/i)?.[1]?.trim() ?? "";
+        const horarios: string[] = [];
+        const liRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+        let liMatch: RegExpExecArray | null;
+        while ((liMatch = liRegex.exec(boxInner)) !== null) {
+          const raw = (liMatch[1] ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+          if (raw) horarios.push(raw);
+        }
+        if (lugar || horarios.length > 0) misas.push({ lugar, horarios });
+      }
+      const fechaStr = [diaLabel, fecha].filter(Boolean).join(" ");
+      if (fechaStr || misas.length > 0) out.push({ fecha: fechaStr || fecha, diaLabel, misas });
+    }
+    return out;
   } catch {
     return [];
   }
+}
+
+function containerInnerFromMatch(inner: string): string {
+  if (!inner) return "";
+  let depth = 1;
+  let i = 0;
+  const len = inner.length;
+  while (i < len) {
+    const open = inner.indexOf("<div", i);
+    const close = inner.indexOf("</div>", i);
+    if (close === -1) break;
+    if (open !== -1 && open < close) {
+      depth++;
+      i = open + 4;
+      continue;
+    }
+    depth--;
+    i = close + 6;
+    if (depth === 0) return inner.slice(0, close);
+  }
+  return inner;
+}
+
+function extractDivContent(html: string, startIndex: number): string {
+  let depth = 1;
+  let i = startIndex;
+  const len = html.length;
+  while (i < len) {
+    const open = html.indexOf("<div", i);
+    const close = html.indexOf("</div>", i);
+    if (close === -1) return html.slice(startIndex);
+    if (open !== -1 && open < close) {
+      depth++;
+      i = open + 4;
+      continue;
+    }
+    depth--;
+    i = close + 6;
+    if (depth === 0) return html.slice(startIndex, close);
+  }
+  return html.slice(startIndex);
 }
 
 function rowsToObjects(rows: string[][]): Record<string, string>[] {
@@ -286,7 +328,7 @@ export async function GET() {
       cumpleanos = cumpleanos.filter((r) => r.nombre || r.fecha);
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+    const { today, end, year: yearGMT3 } = getTodayAndEndGMT3();
 
     crtCv = crtCv.filter((row) => {
       const fin = (row.termina ?? row.fecha_de_fin ?? row.fecha_fin ?? "").trim();
@@ -297,10 +339,6 @@ export async function GET() {
     });
 
     const retirosProximos = getRetirosProximosDelMes(retiros, today);
-
-    const in30Days = new Date();
-    in30Days.setDate(in30Days.getDate() + 30);
-    const end = in30Days.toISOString().slice(0, 10);
 
     const getNombre = (row: Record<string, string>) =>
       row.full_name ?? row.nombre ?? row.name ?? row.nom ?? "";
@@ -313,7 +351,9 @@ export async function GET() {
         const fechaRaw = getFechaNac(row);
         const d = parseDate(fechaRaw);
         if (!d || !nombre) return null;
-        const thisYear = new Date(new Date().getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10);
+        const birthInArg = d.toLocaleDateString("sv-SE", { timeZone: TZ_ARG });
+        const [, m, day] = birthInArg.split("-").map(Number);
+        const thisYear = `${yearGMT3}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
         if (thisYear >= today && thisYear <= end) return { nombre, fecha: thisYear };
         return null;
       })
