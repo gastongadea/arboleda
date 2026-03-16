@@ -371,9 +371,7 @@ export async function GET() {
         }
 
         if (!month || !day) return null;
-        // Ajuste pragmático: sumamos 1 día para compensar diferencias de zona horaria entre local y Vercel.
-        const thisYearDate = new Date(Date.UTC(yearGMT3, month - 1, day + 1, 12, 0, 0));
-        const thisYear = thisYearDate.toISOString().slice(0, 10);
+        const thisYear = `${yearGMT3}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
         if (thisYear >= today && thisYear <= end) return { nombre, fecha: thisYear };
         return null;
       })
