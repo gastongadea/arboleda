@@ -645,6 +645,7 @@ export default function Home() {
                     {data.cumpleanosProximos.map((item, i) => {
                       const today = getTodayGMT3();
                       const esHoy = item.fecha === today;
+                      if (esHoy) return null; // ya se muestra arriba como "Hoy"
                       return (
                         <li
                           key={i}
@@ -742,3 +743,4 @@ export default function Home() {
     </main>
   );
 }
+ 

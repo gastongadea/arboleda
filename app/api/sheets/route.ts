@@ -212,7 +212,8 @@ function parseDate(s: string | number): Date | null {
   const num = Number(str);
   if (!isNaN(num) && num > 0 && num < 100000) {
     const excelEpoch = new Date(1899, 11, 30);
-    const d = new Date(excelEpoch.getTime() + num * 86400 * 1000);
+    // En Google Sheets / Excel, el día 1 es 1899-12-30; por eso restamos 1.
+    const d = new Date(excelEpoch.getTime() + (num - 1) * 86400 * 1000);
     return isNaN(d.getTime()) ? null : d;
   }
   const parts = str.split(/[\/\-\.]/).map((p) => parseInt(p.trim(), 10));
