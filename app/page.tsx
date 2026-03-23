@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
@@ -885,7 +885,7 @@ export default function Home() {
                 onClick={() => toggleSection("iniciativas")}
                 className="mb-2 flex w-full items-center justify-between text-left"
               >
-                <h2 className="text-xl font-semibold text-green-400">Iniciativas</h2>
+                <h2 className="text-xl font-semibold text-green-400">Iniciativas (Nuevo!)</h2>
                 <span
                   className={`transform text-slate-300 transition-transform ${
                     openSections.iniciativas ? "rotate-180" : ""
