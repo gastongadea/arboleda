@@ -5,33 +5,65 @@ import Image from "next/image";
 
 const CONFIG_PASSWORD = "4rb0sg";
 
-const SECTION_IDS = ["misas", "retiros", "ces", "crt", "cumples", "recursos"] as const;
-const SECTION_LABELS: Record<(typeof SECTION_IDS)[number], string> = {
+const SECTION_IDS = ["misas", "retiros", "ces", "crt", "cumples", "recursos", "iniciativas"] as const;
+type SectionId = (typeof SECTION_IDS)[number];
+const SECTION_LABELS: Record<SectionId, string> = {
   misas: "Misas en el campus",
   retiros: "Retiros mensuales",
   ces: "Círculos de estudio",
   crt: "Actividades del año",
   cumples: "Cumpleaños",
   recursos: "Recursos",
+  iniciativas: "Iniciativas",
 };
 
 const VISIBILITY_KEY = "arboleda-section-visibility";
+const ORDER_KEY = "arboleda-section-order";
 
-const DEFAULT_VISIBILITY: Record<(typeof SECTION_IDS)[number], boolean> = {
+function isSectionId(s: string): s is SectionId {
+  return (SECTION_IDS as readonly string[]).includes(s);
+}
+
+function loadSectionOrder(): SectionId[] {
+  if (typeof window === "undefined") return [...SECTION_IDS];
+  try {
+    const raw = localStorage.getItem(ORDER_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return [...SECTION_IDS];
+      const seen = new Set<string>();
+      const ordered: SectionId[] = [];
+      for (const item of parsed) {
+        if (typeof item === "string" && isSectionId(item) && !seen.has(item)) {
+          ordered.push(item);
+          seen.add(item);
+        }
+      }
+      for (const id of SECTION_IDS) {
+        if (!seen.has(id)) ordered.push(id);
+      }
+      return ordered;
+    }
+  } catch {}
+  return [...SECTION_IDS];
+}
+
+const DEFAULT_VISIBILITY: Record<SectionId, boolean> = {
   misas: true,
   retiros: true,
   ces: true,
   crt: true,
   cumples: true,
   recursos: true,
+  iniciativas: true,
 };
 
-function loadSectionVisibility(): Record<(typeof SECTION_IDS)[number], boolean> {
+function loadSectionVisibility(): Record<SectionId, boolean> {
   if (typeof window === "undefined") return DEFAULT_VISIBILITY;
   try {
     const raw = localStorage.getItem(VISIBILITY_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as Partial<Record<(typeof SECTION_IDS)[number], boolean>>;
+      const parsed = JSON.parse(raw) as Partial<Record<SectionId, boolean>>;
       return { ...DEFAULT_VISIBILITY, ...parsed };
     }
   } catch {}
@@ -44,6 +76,15 @@ type MisasPorDia = {
   misas: { lugar: string; horarios: string[] }[];
 };
 
+type IniciativaItem = {
+  titulo: string;
+  frecuencia: string;
+  lugar: string;
+  fechaYHora: string;
+  responsable: string;
+  contactoHref: string;
+};
+
 type SheetData = {
   retirosProximos: { fecha: string; lugar: string }[];
   mesRetirosLabel: string | null;
@@ -54,6 +95,7 @@ type SheetData = {
   otrasFechasLink?: string;
   misasCampus?: MisasPorDia[];
   recursos?: Record<string, string>[];
+  iniciativas?: IniciativaItem[];
 };
 
 /** Fecha de hoy en GMT-3 (Argentina) para que "hoy" no cambie a las 21h por UTC. */
@@ -131,6 +173,41 @@ function formatDateRange(empieza: string, termina: string): string {
   return `Fechas: ${ini.day} de ${ini.monthName} al ${fin.day} de ${fin.monthName}`;
 }
 
+/** Una línea: título en negrita, luego frecuencia · lugar · fecha/hora; el responsable enlaza al WhatsApp del campo Contacto. */
+function IniciativaLine({ item }: { item: IniciativaItem }) {
+  const { titulo, frecuencia, lugar, fechaYHora, responsable, contactoHref } = item;
+  const middle = [frecuencia, lugar, fechaYHora].filter(Boolean);
+  const hasHead = Boolean(titulo || middle.length > 0);
+  return (
+    <p className="text-base leading-relaxed text-slate-200">
+      {titulo ? <strong className="font-bold text-white">{titulo}</strong> : null}
+      {middle.length > 0 ? (
+        <>
+          {titulo ? " - " : ""}
+          {middle.join(" - ")}
+        </>
+      ) : null}
+      {responsable ? (
+        <>
+          {hasHead ? ". " : ""}
+          {contactoHref ? (
+            <a
+              href={contactoHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-green-300 underline decoration-green-500/40 underline-offset-2 hover:text-green-200"
+            >
+              {responsable}
+            </a>
+          ) : (
+            <span className="text-white">{responsable}</span>
+          )}
+        </>
+      ) : null}
+    </p>
+  );
+}
+
 function loadData(): Promise<SheetData> {
   return fetch("/api/sheets", { cache: "no-store" })
     .then((r) => {
@@ -154,21 +231,33 @@ export default function Home() {
     crt: false,
     cumples: false,
     recursos: false,
+    iniciativas: false,
   });
-  const [sectionVisibility, setSectionVisibility] = useState<Record<(typeof SECTION_IDS)[number], boolean>>({
+  const [sectionVisibility, setSectionVisibility] = useState<Record<SectionId, boolean>>({
     misas: true,
     retiros: true,
     ces: true,
     crt: true,
     cumples: true,
     recursos: true,
+    iniciativas: true,
   });
+  const [sectionOrder, setSectionOrder] = useState<SectionId[]>(() => [...SECTION_IDS]);
+  const [draggingSectionId, setDraggingSectionId] = useState<SectionId | null>(null);
 
   useEffect(() => {
     setSectionVisibility(loadSectionVisibility());
+    setSectionOrder(loadSectionOrder());
   }, []);
 
-  const setSectionVisible = (id: (typeof SECTION_IDS)[number], visible: boolean) => {
+  const persistSectionOrder = (next: SectionId[]) => {
+    setSectionOrder(next);
+    try {
+      localStorage.setItem(ORDER_KEY, JSON.stringify(next));
+    } catch {}
+  };
+
+  const setSectionVisible = (id: SectionId, visible: boolean) => {
     const next = { ...sectionVisibility, [id]: visible };
     setSectionVisibility(next);
     try {
@@ -228,7 +317,7 @@ export default function Home() {
       {/* Modal Configuración */}
       {configOpen && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 p-4" onClick={() => setConfigOpen(false)}>
-          <div className="card-glass w-full max-w-sm rounded-xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="card-glass w-full max-w-md rounded-xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-white">Configuración</h3>
               <button type="button" onClick={() => setConfigOpen(false)} className="text-slate-400 hover:text-white">✕</button>
@@ -256,11 +345,57 @@ export default function Home() {
                   <span className="text-xl font-semibold text-white">{data?.visitCount ?? 0}</span>
                 </p>
                 <div>
-                  <p className="mb-2 text-sm text-slate-400">Mostrar u ocultar secciones</p>
+                  <p className="mb-2 text-sm text-slate-400">Orden y visibilidad</p>
+                  <p className="mb-3 text-xs text-slate-500">
+                    Arrastra el ícono ⋮⋮ para cambiar el orden en la página. El orden se guarda en este dispositivo.
+                  </p>
                   <ul className="space-y-2">
-                    {SECTION_IDS.map((id) => (
-                      <li key={id} className="flex items-center justify-between gap-2">
-                        <label className="cursor-pointer text-sm text-white">
+                    {sectionOrder.map((id) => (
+                      <li
+                        key={id}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const fromId = e.dataTransfer.getData("text/plain");
+                          if (!fromId || !isSectionId(fromId) || fromId === id) return;
+                          const fromIndex = sectionOrder.indexOf(fromId);
+                          const toIndex = sectionOrder.indexOf(id);
+                          if (fromIndex === -1 || toIndex === -1) return;
+                          const next = [...sectionOrder];
+                          next.splice(fromIndex, 1);
+                          next.splice(toIndex, 0, fromId);
+                          persistSectionOrder(next);
+                        }}
+                        className={`flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2 py-2 transition-opacity ${
+                          draggingSectionId === id ? "opacity-50" : ""
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData("text/plain", id);
+                            e.dataTransfer.effectAllowed = "move";
+                            setDraggingSectionId(id);
+                          }}
+                          onDragEnd={() => setDraggingSectionId(null)}
+                          className="cursor-grab touch-none rounded p-1.5 text-slate-400 hover:bg-white/10 active:cursor-grabbing"
+                          aria-label={`Arrastrar para reordenar: ${SECTION_LABELS[id]}`}
+                          title="Arrastrar para ordenar"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                            <circle cx="9" cy="6" r="1.5" />
+                            <circle cx="15" cy="6" r="1.5" />
+                            <circle cx="9" cy="12" r="1.5" />
+                            <circle cx="15" cy="12" r="1.5" />
+                            <circle cx="9" cy="18" r="1.5" />
+                            <circle cx="15" cy="18" r="1.5" />
+                          </svg>
+                        </button>
+                        <label className="min-w-0 flex-1 cursor-pointer text-sm text-white">
                           {SECTION_LABELS[id]}
                         </label>
                         <button
@@ -344,9 +479,13 @@ export default function Home() {
 
         {!loading && data && (
           <div className="space-y-8">
-            {/* Misas en el Campus (desde austral.edu.ar/capellania) */}
-            {sectionVisibility.misas && (
+            {sectionOrder.map((id) => {
+              if (!sectionVisibility[id]) return null;
+              switch (id) {
+                case "misas":
+                  return (
               <section
+                key={id}
                 className={`card-glass transition-all duration-200 ${
                   !openSections.misas ? "py-2 sm:py-2 px-6 sm:px-8" : "p-6 sm:p-8 sm:py-4"
                 }`}
@@ -408,11 +547,11 @@ export default function Home() {
                   </>
                 )}
               </section>
-            )}
-
-            {/* Retiros mensuales (del mes actual o del próximo) */}
-            {sectionVisibility.retiros && (
+                  );
+                case "retiros":
+                  return (
             <section
+              key={id}
               className={`card-glass transition-all duration-200 ${
                 !openSections.retiros ? "py-2 sm:py-2 px-6 sm:px-8" : "p-6 sm:p-8"
               }`}
@@ -457,11 +596,11 @@ export default function Home() {
                   <p className="text-slate-400">No hay fechas cargadas para los próximos retiros.</p>
                 ))}
             </section>
-            )}
-
-            {/* Círculos de estudio (semanal) */}
-            {sectionVisibility.ces && (
+                  );
+                case "ces":
+                  return (
             <section
+              key={id}
               className={`card-glass transition-all duration-200 ${
                 !openSections.ces ? "py-2 sm:py-2 px-6 sm:px-8" : "p-6 sm:p-8"
               }`}
@@ -509,11 +648,11 @@ export default function Home() {
                   </ul>
                 ))}
             </section>
-            )}
-
-            {/* Actividades del año (CRT-CV) */}
-            {sectionVisibility.crt && (
+                  );
+                case "crt":
+                  return (
             <section
+              key={id}
               className={`card-glass transition-all duration-200 ${
                 !openSections.crt ? "py-2 sm:py-2 px-6 sm:px-8" : "p-6 sm:p-8"
               }`}
@@ -589,11 +728,11 @@ export default function Home() {
                 </a>
               ) : null}
             </section>
-            )}
-
-            {/* Cumpleaños próximos 30 días */}
-            {sectionVisibility.cumples && (
+                  );
+                case "cumples":
+                  return (
             <section
+              key={id}
               className={`card-glass transition-all duration-200 ${
                 !openSections.cumples ? "py-2 sm:py-2 px-6 sm:px-8" : "p-6 sm:p-8"
               }`}
@@ -666,11 +805,11 @@ export default function Home() {
                   </ul>
                 ))}
             </section>
-            )}
-
-            {/* Recursos */}
-            {sectionVisibility.recursos && (
+                  );
+                case "recursos":
+                  return (
             <section
+              key={id}
               className={`card-glass transition-all duration-200 ${
                 !openSections.recursos ? "py-2 sm:py-2 px-6 sm:px-8" : "p-6 sm:p-8"
               }`}
@@ -732,7 +871,47 @@ export default function Home() {
                   <p className="text-slate-400">No hay recursos cargados.</p>
                 ))}
             </section>
-            )}
+                  );
+                case "iniciativas":
+                  return (
+            <section
+              key={id}
+              className={`card-glass transition-all duration-200 ${
+                !openSections.iniciativas ? "py-2 sm:py-2 px-6 sm:px-8" : "p-6 sm:p-8"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => toggleSection("iniciativas")}
+                className="mb-2 flex w-full items-center justify-between text-left"
+              >
+                <h2 className="text-xl font-semibold text-green-400">Iniciativas</h2>
+                <span
+                  className={`transform text-slate-300 transition-transform ${
+                    openSections.iniciativas ? "rotate-180" : ""
+                  }`}
+                >
+                  ▼
+                </span>
+              </button>
+              {openSections.iniciativas &&
+                ((data.iniciativas?.length ?? 0) > 0 ? (
+                  <ul className="space-y-4">
+                    {(data.iniciativas ?? []).map((item, i) => (
+                      <li key={i} className="border-b border-white/10 pb-4 last:border-0 last:pb-0">
+                        <IniciativaLine item={item} />
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-slate-400">No hay iniciativas cargadas.</p>
+                ))}
+            </section>
+                  );
+                default:
+                  return null;
+              }
+            })}
           </div>
         )}
 

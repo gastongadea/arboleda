@@ -194,6 +194,43 @@ function rowsToObjects(rows: string[][]): Record<string, string>[] {
   return out;
 }
 
+/** Campo Contacto: URL de WhatsApp o número; el cliente muestra el enlace en el nombre del responsable. */
+function normalizeWhatsAppHref(raw: string): string {
+  const s = raw.trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  if (/^wa\.me\//i.test(s)) return `https://${s}`;
+  const digits = s.replace(/\D/g, "");
+  if (digits.length >= 8) return `https://wa.me/${digits}`;
+  return s;
+}
+
+export type IniciativaItem = {
+  titulo: string;
+  frecuencia: string;
+  lugar: string;
+  fechaYHora: string;
+  responsable: string;
+  contactoHref: string;
+};
+
+function iniciativasFromRows(rows: string[][]): IniciativaItem[] {
+  const objs = rowsToObjects(rows);
+  const out: IniciativaItem[] = [];
+  for (const row of objs) {
+    const titulo = (row.título ?? row.titulo ?? "").trim();
+    const frecuencia = (row.frecuencia ?? "").trim();
+    const lugar = (row.lugar ?? "").trim();
+    const fechaYHora = (row.fecha_y_hora ?? row["fecha_y_hora"] ?? "").trim();
+    const responsable = (row.responsable ?? "").trim();
+    const contactoRaw = (row.contacto ?? "").trim();
+    const contactoHref = contactoRaw ? normalizeWhatsAppHref(contactoRaw) : "";
+    if (!titulo && !frecuencia && !lugar && !fechaYHora && !responsable) continue;
+    out.push({ titulo, frecuencia, lugar, fechaYHora, responsable, contactoHref });
+  }
+  return out;
+}
+
 function parseMonth(label: string): number {
   const m: Record<string, number> = {
     enero: 0, ene: 0, february: 1, febrero: 1, feb: 1, marzo: 2, mar: 2, abril: 3, abr: 3,
@@ -301,18 +338,20 @@ export async function GET() {
   }
 
   try {
-    const [retiros, crtCvRows, cesRows, cumpleanosRows, recursosRows] = await Promise.all([
+    const [retiros, crtCvRows, cesRows, cumpleanosRows, recursosRows, iniciativasRows] = await Promise.all([
       getRetirosMensuales(),
       getSheetValues("crt-cv!A:Z"),
       getSheetValues("ces!A:Z"),
       getSheetValues("Cumples!A:B"),
       getSheetValues("Recursos!A:Z").catch(() => getSheetValues("recursos!A:Z").catch(() => [[] as string[]])),
+      getSheetValues("Iniciativas!A:Z").catch(() => getSheetValues("iniciativas!A:Z").catch(() => [[] as string[]])),
     ]);
 
     let crtCv = rowsToObjects(crtCvRows);
     const ces = rowsToObjects(cesRows);
     const recursosRaw = (recursosRows ?? []) as string[][];
     const recursos = recursosRaw.length >= 2 ? rowsToObjects(recursosRaw) : [];
+    const iniciativas = iniciativasFromRows((iniciativasRows ?? []) as string[][]);
     let cumpleanos = rowsToObjects(cumpleanosRows);
     if (cumpleanos.length === 0 && cumpleanosRows.length >= 1) {
       const header = (cumpleanosRows[0] ?? []).map((h) => String(h).toLowerCase().replace(/\s+/g, "_"));
@@ -402,6 +441,7 @@ export async function GET() {
       misasCampus,
       otrasFechasLink: otrasFechasLink || undefined,
       recursos,
+      iniciativas,
     });
   } catch (e) {
     console.error(e);
