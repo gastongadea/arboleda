@@ -10,7 +10,7 @@ type SectionId = (typeof SECTION_IDS)[number];
 const SECTION_LABELS: Record<SectionId, string> = {
   misas: "Misas en el campus",
   retiros: "Retiros mensuales",
-  ces: "Círculos de estudio",
+  ces: "Círculos de estudio y confesiones",
   crt: "Actividades del año",
   cumples: "Cumpleaños",
   recursos: "Recursos",
@@ -611,7 +611,7 @@ export default function Home() {
                 className="mb-2 flex w-full items-center justify-between text-left"
               >
                 <h2 className="text-xl font-semibold text-green-400">
-                  Círculos de estudio
+                  Círculos de estudio y confesiones
                 </h2>
                 <span
                   className={`transform text-slate-300 transition-transform ${
@@ -626,25 +626,40 @@ export default function Home() {
                   <p className="text-slate-400">No hay círculos cargados.</p>
                 ) : (
                   <ul className="space-y-4">
-                    {data.ces.map((row, i) => (
+                    {data.ces.map((row, i) => {
+                      const lugar = getVal(row, "lugar", "Lugar") || "—";
+                      const dia = getVal(row, "día", "dia", "Día") || "—";
+                      const hora = getVal(row, "hora", "Hora") || "—";
+                      const encargado = getVal(row, "encargado", "Encargado") || "—";
+                      const confesiones = getVal(row, "confesiones", "Confesiones");
+                      return (
                       <li
                         key={i}
-                        className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-white/10 pb-3 last:border-0 last:pb-0"
+                        className="border-b border-white/10 pb-3 last:border-0 last:pb-0"
                       >
-                        <span className="font-medium text-white">
-                          {getVal(row, "lugar", "Lugar") || "—"}
-                        </span>
-                        <span className="text-slate-300">
-                          {getVal(row, "día", "dia", "Día") || "—"}
-                        </span>
-                        <span className="text-slate-300">
-                          {getVal(row, "hora", "Hora") || "—"}
-                        </span>
-                        <span className="text-slate-400">
-                          Encargado: {getVal(row, "encargado", "Encargado") || "—"}
-                        </span>
+                        <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+                          <span className="w-full font-medium text-white sm:w-auto sm:min-w-[6rem]">
+                            {lugar}
+                          </span>
+                          <div className="min-w-[4.5rem]">
+                            <span className="block text-slate-300">{dia}</span>
+                            {confesiones ? (
+                              <span className="mt-1 block text-sm text-slate-400">Confesiones</span>
+                            ) : null}
+                          </div>
+                          <div className="min-w-[4.5rem]">
+                            <span className="block text-slate-300">{hora}</span>
+                            {confesiones ? (
+                              <span className="mt-1 block text-sm text-slate-300">{confesiones}</span>
+                            ) : null}
+                          </div>
+                          <span className="text-slate-400">
+                            Encargado: {encargado}
+                          </span>
+                        </div>
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
                 ))}
             </section>
@@ -885,7 +900,7 @@ export default function Home() {
                 onClick={() => toggleSection("iniciativas")}
                 className="mb-2 flex w-full items-center justify-between text-left"
               >
-                <h2 className="text-xl font-semibold text-green-400">Iniciativas (Nuevo!)</h2>
+                <h2 className="text-xl font-semibold text-green-400">Iniciativas apostólicas</h2>
                 <span
                   className={`transform text-slate-300 transition-transform ${
                     openSections.iniciativas ? "rotate-180" : ""
